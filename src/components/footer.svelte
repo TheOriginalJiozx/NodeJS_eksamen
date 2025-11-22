@@ -1,0 +1,1 @@
+<p class="mt-8 text-white/70 text-sm text-center">© 2025 Colouriana. Alle rettigheder forbeholdes.</p>
