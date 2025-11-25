@@ -7,13 +7,16 @@
 
   $: currentUser = $user;
 
-  function logout() {
+  async function logout() {
+    await fetch('/api/logout', {
+      method: 'POST',
+      credentials: 'include'
+    });
+
     localStorage.removeItem('jwt');
     localStorage.removeItem('username');
     user.set(null);
-
     toast.success("Du er nu logget ud");
-
     goto('/');
   }
 </script>

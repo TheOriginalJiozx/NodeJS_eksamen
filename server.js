@@ -80,6 +80,11 @@ app.get('/api/profile', async (req, res) => {
   }
 });
 
+app.post('/api/logout', (req, res) => {
+  res.clearCookie('jwt', { path: '/' });
+  res.status(200).json({ success: true });
+});
+
 const PORT = 3000;
 app.listen(PORT, () => {
   console.log(`Express serveren kører på port ${PORT}`);

@@ -43,7 +43,6 @@ export async function readUsers() {
 }
 
 /**
- * Finder en bruger baseret på username
  * @param {string} username
  * @returns {Promise<User|null>}
  */
