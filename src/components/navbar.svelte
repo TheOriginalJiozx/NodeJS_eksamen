@@ -3,7 +3,7 @@
   import { goto } from '$app/navigation';
   import toast from "svelte-5-french-toast";
 
-  export let links = [{ href: '/', label: 'Home' }];
+  export let links = [{ href: '/', label: 'Hjem' }];
 
   $: currentUser = $user;
 
@@ -35,16 +35,17 @@
 
         {#if currentUser}
           <span class="text-white">Hej, {currentUser.username}</span>
+          <a href="/profile" class="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 transition">Profil</a>
+          <a href="/games" class="bg-yellow-500 text-white px-3 py-1 rounded hover:bg-yellow-600 transition">Spil</a>
           <button
             class="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600 transition"
             on:click={logout}
           >
-            Logout
+            Log ud
           </button>
-          <a href="/profile" class="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 transition">Profile</a>
         {:else}
-          <a href="/login" class="bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600 transition">Login</a>
-          <a href="/signup" class="bg-purple-500 text-white px-3 py-1 rounded hover:bg-purple-600 transition">Register</a>
+          <a href="/login" class="bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600 transition">Log ind</a>
+          <a href="/signup" class="bg-purple-500 text-white px-3 py-1 rounded hover:bg-purple-600 transition">Opret bruger</a>
         {/if}
       </div>
     </div>

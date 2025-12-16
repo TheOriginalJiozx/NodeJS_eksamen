@@ -4,6 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { db } from '../database.js';
+import logger from './logger.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -17,15 +18,19 @@ const __dirname = path.dirname(__filename);
  * }} User
  */
 
-const privateKey = fs.readFileSync(path.join(__dirname, 'private.key'), 'utf8');
+const privateKeyPath = path.resolve(process.cwd(), 'src/lib/private.key');
+const publicKeyPath = path.resolve(process.cwd(), 'src/lib/public.key');
+
+/** @type {string} */
+const privateKey = fs.readFileSync(privateKeyPath, 'utf8');
 
 /** @type {string} */
 let publicKey;
 
 try {
-    publicKey = fs.readFileSync(path.join(__dirname, 'public.key'), 'utf8');
+    publicKey = fs.readFileSync(publicKeyPath, 'utf8');
 } catch {
-    console.warn('Public key ikke fundet. RS256 validering vil bruge private key.');
+    logger.warn('Public key ikke fundet. RS256 validering vil bruge private key.');
     publicKey = privateKey;
 }
 
@@ -112,7 +117,7 @@ export async function verifyPassword(password, hashedPassword) {
  * @returns {string}
  */
 export function generateToken(payload) {
-    return jwt.sign(payload, privateKey, { algorithm: 'RS256', expiresIn: '1h' });
+    return jwt.sign(payload, privateKey, { algorithm: 'RS256'});
 }
 
 /**
@@ -125,7 +130,25 @@ export function verifyToken(token) {
         if (typeof decoded === 'string') return null;
         return decoded;
     } catch (err) {
-        console.error('Token validering fejlede:', err);
+        logger.error({ err }, 'Token validering fejlede');
         return null;
     }
+}
+
+/**
+ * @param {string} username
+ * @param {string} currentPassword
+ * @param {string} newPassword
+ * @returns {Promise<boolean>}
+ */
+export async function changePassword(username, currentPassword, newPassword) {
+    const user = await getUserByUsername(username);
+    if (!user) throw new Error('Bruger findes ikke');
+
+    const match = await verifyPassword(currentPassword, user.password);
+    if (!match) throw new Error('Forkert nuværende adgangskode');
+
+    const hashedPassword = await hashPassword(newPassword);
+    await db.query('UPDATE users SET password = ? WHERE id = ?', [hashedPassword, user.id]);
+    return true;
 }

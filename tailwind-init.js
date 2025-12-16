@@ -1,4 +1,5 @@
 import { writeFileSync } from "node:fs";
+import logger from "./src/lib/logger.js";
 
 // Simpel Tailwind config template
 const config = `/** @type {import('tailwindcss').Config} */
@@ -11,4 +12,4 @@ module.exports = {
 writeFileSync("tailwind.config.cjs", config);
 writeFileSync("postcss.config.cjs", `module.exports = { plugins: { tailwindcss: {}, autoprefixer: {} } };`);
 
-console.log("Tailwind config files created!");
+logger.info("Tailwind config files created!");

@@ -1,8 +1,9 @@
-<script lang="ts">
+<script>
   import Footer from "../../components/footer.svelte";
   import Navbar from '../../components/navbar.svelte';
   import toast from "svelte-5-french-toast";
   import { writable } from 'svelte/store';
+  import logger from '../../lib/logger.js';
 
   let username = '';
   let email = '';
@@ -10,23 +11,34 @@
 
   async function signup() {
     try {
-      const res = await fetch('/api/signup', {
+      logger.debug(`Forsøger at registrere bruger: "${username}"`);
+
+      /** @type {Response} */
+      const res = await fetch('http://localhost:3000/api/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, email, password })
       });
 
+      /** @type {{ message?: string }} */
       const data = await res.json();
 
       if (!res.ok) {
-        toast.error(data.message || "Registrering mislykkedes!");
+        logger.warn(`Registrering mislykkedes for "${username}": ${data?.message || 'Ukendt fejl'}`);
+        toast.error(data?.message || "Registrering mislykkedes!");
       } else {
-        toast.success(data.message || "Registrering lykkedes!");
+        logger.info(`Registrering lykkedes for "${username}"`);
+        toast.success(data?.message || "Registrering lykkedes!");
       }
 
     } catch (err) {
-      console.error("Registreringsfejl:", err);
-      toast.error(err instanceof Error ? err.message : "Registrering mislykkedes!");
+      if (err instanceof Error) {
+        logger.error({ msg: `Registreringsfejl for bruger "${username}"`, err });
+        toast.error(err.message);
+      } else {
+        logger.error({ msg: `Registreringsfejl for bruger "${username}"`, err });
+        toast.error("Registrering mislykkedes!");
+      }
     }
   }
 
@@ -53,6 +65,7 @@
       do {
         next = gradients[Math.floor(Math.random() * gradients.length)];
       } while (next === current);
+      logger.debug(`Skiftet gradient fra "${current}" til "${next}"`);
       return next;
     });
   }
@@ -93,7 +106,7 @@
         on:click={signup}
         class="w-full mb-4 bg-red-500/80 hover:bg-red-600/90 text-white py-3 rounded-xl shadow-lg hover:shadow-xl transition font-semibold text-lg"
       >
-        Registrer
+        Opret bruger
       </button>
       
       <button on:click={changeColor}
