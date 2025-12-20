@@ -1,13 +1,10 @@
-// eslint.config.js
 import { defineConfig } from "eslint/config";
 import js from "@eslint/js";
 
 export default defineConfig([
   {
-    // Kun JS/TS filer i src-mappen
     files: ["src/**/*.{js,ts}"],
 
-    // Ignorer alt andet
     ignores: [
       "node_modules",
       "build",

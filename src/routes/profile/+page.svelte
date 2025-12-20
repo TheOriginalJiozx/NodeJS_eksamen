@@ -6,6 +6,7 @@
   import { goto } from '$app/navigation';
   import { writable } from 'svelte/store';
   import logger from '../../lib/logger.js';
+  import io from 'socket.io-client';
 
   /** @type {import('svelte/store').Writable<string>} */
   const backgroundGradient = writable('from-indigo-700 via-purple-700 to-fuchsia-600');
@@ -34,9 +35,9 @@
   }
 
   /**
-   * @type {{ username: string }}
+   * @type {{ username: string, role: string }}
    */
-  let userData = { username: '' };
+  let userData = { username: '', role: '' };
 
   let showChangePassword = false;
   let currentPassword = '';
@@ -44,14 +45,14 @@
   let confirmPassword = '';
   let changing = false;
 
-  onMount(async () => {
-    const token = localStorage.getItem('jwt');
+  let isAdminOnline = false;
+  let adminOnlineMessage = '';
+  /** @type {import('socket.io-client').Socket | undefined} */
+  let socket;
 
-    if (!token) {
-      toast.error('Du er ikke logget ind');
-      goto('/login');
-      return;
-    }
+  onMount(async () => {
+
+    const token = localStorage.getItem('jwt');
 
     try {
       const res = await fetch('http://localhost:3000/api/profile', {
@@ -68,6 +69,40 @@
 
       const result = await res.json();
       userData = result;
+      if (typeof result.username_changed !== 'undefined') {
+        usernameChanged = !!result.username_changed;
+      }
+      if (result.role) {
+        userData.role = result.role;
+        localStorage.setItem('role', result.role);
+      }
+
+      socket = io('http://localhost:3000');
+      socket.on('adminOnlineMessage', (data) => {
+        logger.debug({ data }, 'CLIENT received adminOnlineMessage');
+        adminOnlineMessage = data.message || '';
+        if (Array.isArray(data.admins)) {
+          const nowOnline = data.admins.includes(userData.username);
+          isAdminOnline = nowOnline;
+          localStorage.setItem('isAdminOnline', nowOnline ? 'true' : 'false');
+        }
+      });
+
+      if (userData.role && String(userData.role).toLowerCase() === 'admin') {
+        isAdminOnline = true;
+        logger.debug({ username: userData.username }, 'CLIENT: preparing to emit adminOnline');
+        const emitOnline = () => {
+          if (!socket) return logger.warn('socket not ready for emitOnline');
+          logger.debug({ username: userData.username }, 'CLIENT EMIT adminOnline');
+          socket.emit('adminOnline', { username: userData.username, online: true });
+          logger.debug('CLIENT EMIT done');
+        };
+        if (socket?.connected) {
+          emitOnline();
+        } else if (socket) {
+          socket.once('connect', emitOnline);
+        }
+      }
 
     } catch (err) {
       logger.error({ err }, 'Serverfejl ved hentning af profil');
@@ -93,11 +128,6 @@
     }
 
     const token = localStorage.getItem('jwt');
-    if (!token) {
-      toast.error('Du er ikke logget ind');
-      goto('/login');
-      return;
-    }
 
     changing = true;
     try {
@@ -129,6 +159,57 @@
       changing = false;
     }
   }
+
+  let showChangeUsername = false;
+  let newUsername = '';
+  let changingUsername = false;
+  let usernameChanged = false;
+  async function submitChangeUsername() {
+    if (!newUsername || newUsername.length < 3) {
+      toast.error('Nyt brugernavn skal være mindst 3 tegn');
+      return;
+    }
+    const token = localStorage.getItem('jwt');
+    changingUsername = true;
+    try {
+      const res = await fetch('http://localhost:3000/api/change-username', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ newUsername })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(data?.message || 'Kunne ikke ændre brugernavn');
+        return;
+      }
+      toast.success('Brugernavn opdateret');
+      userData.username = newUsername;
+      localStorage.setItem('username', newUsername);
+      if (data.token) {
+        localStorage.setItem('jwt', data.token);
+      }
+      showChangeUsername = false;
+      newUsername = '';
+      usernameChanged = true;
+    } catch (err) {
+      logger.error({ err }, 'Serverfejl ved skift af brugernavn');
+      toast.error('Serverfejl');
+    } finally {
+      changingUsername = false;
+    }
+  }
+
+  function toggleAdminOnline() {
+    isAdminOnline = !isAdminOnline;
+    localStorage.setItem('isAdminOnline', isAdminOnline ? 'true' : 'false');
+    if (userData.role === 'Admin' && socket) {
+      socket.emit?.('adminOnline', { username: userData.username, online: isAdminOnline });
+    }
+  }
+
 </script>
 
 <Navbar />
@@ -147,6 +228,32 @@
       </button>
 
         <div class="mt-6 space-y-3">
+          {#if !usernameChanged}
+          <button
+            class="w-full bg-white/30 hover:bg-white/50 text-white font-semibold py-2 px-4 rounded-xl transition"
+            on:click={() => (showChangeUsername = !showChangeUsername)}
+          >
+            {showChangeUsername ? 'Luk skift brugernavn' : 'Skift brugernavn'}
+          </button>
+
+          {#if showChangeUsername}
+            <div class="space-y-3 bg-white text-black rounded-xl p-4 shadow-lg">
+              <input
+                type="text"
+                placeholder="Nyt brugernavn (min. 3 tegn)"
+                class="w-full px-3 py-2 rounded border border-gray-300 bg-white text-black focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                bind:value={newUsername}
+              />
+              <button
+                class="w-full bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-xl transition disabled:opacity-50"
+                on:click={submitChangeUsername}
+                disabled={changingUsername}
+              >
+                {changingUsername ? 'Skifter...' : 'Gem brugernavn'}
+              </button>
+            </div>
+          {/if}
+          {/if}
           <button
             class="w-full bg-white/30 hover:bg-white/50 text-white font-semibold py-2 px-4 rounded-xl transition"
             on:click={() => (showChangePassword = !showChangePassword)}
@@ -182,6 +289,15 @@
                 {changing ? 'Skifter...' : 'Gem adgangskode'}
               </button>
             </div>
+          {/if}
+
+          {#if userData.role === 'Admin'}
+            <button
+              class="w-full bg-yellow-500 hover:bg-yellow-600 text-white font-semibold py-2 px-4 rounded-xl transition mb-4"
+              on:click={toggleAdminOnline}
+            >
+              {isAdminOnline ? 'Vis admin offline status' : 'Vis admin online status'}
+            </button>
           {/if}
         </div>
     </div>

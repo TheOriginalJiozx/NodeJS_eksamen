@@ -4,6 +4,9 @@ let roundActive = false;
 /** @type {string} */
 let targetColor = '';
 
+/** @type {string} */
+const newRoundEvent = 'newRound';
+
 /**
  * @param {import('socket.io').Server} io
  * @returns {void}
@@ -12,7 +15,7 @@ function startRound(io) {
   const colors = ['Rød', 'Blå', 'Grøn', 'Gul', 'Sort', 'Guld', 'Lyserød', 'Turkis', 'Lilla', 'Brun'];
   targetColor = colors[Math.floor(Math.random() * colors.length)];
   roundActive = true;
-  io.emit('newRound', targetColor);
+  io.emit(newRoundEvent, targetColor);
 }
 
 /**
@@ -44,7 +47,7 @@ export function initializeColorGame(io, socketUsers) {
      */
     sendCurrentRound: (socket) => {
       if (roundActive) {
-        socket.emit('newRound', targetColor);
+        socket.emit(newRoundEvent, targetColor);
       }
     }
   };

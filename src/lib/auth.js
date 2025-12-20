@@ -2,12 +2,8 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import { db } from '../database.js';
 import logger from './logger.js';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 /**
  * @typedef {import("mysql2").RowDataPacket & {
@@ -41,7 +37,7 @@ export async function readUsers() {
 
     /** @type {[User[], import('mysql2/promise').FieldPacket[]]} */
     const [rows] = await db.query(
-        'SELECT id, username, email, password FROM users'
+        'SELECT id, username, email, password, role FROM users'
     );
 
     return rows;
@@ -55,7 +51,7 @@ export async function getUserByUsername(username) {
 
     /** @type {[User[], import('mysql2/promise').FieldPacket[]]} */
     const [rows] = await db.query(
-        'SELECT id, username, email, password FROM users WHERE username = ?',
+        'SELECT id, username, email, password, role FROM users WHERE username = ?',
         [username]
     );
 
@@ -70,7 +66,7 @@ export async function getUserByEmail(email) {
 
     /** @type {[User[], import('mysql2/promise').FieldPacket[]]} */
     const [rows] = await db.query(
-        'SELECT id, username, email, password FROM users WHERE email = ?',
+        'SELECT id, username, email, password, role FROM users WHERE email = ?',
         [email]
     );
 
@@ -85,10 +81,10 @@ export async function getUserByEmail(email) {
  */
 export async function createUser(username, email, hashedPassword) {
 
-    /** @type {[import("mysql2").OkPacket, import("mysql2/promise").FieldPacket[]]} */
+    /** @type {[import("mysql2").ResultSetHeader, import("mysql2/promise").FieldPacket[]]} */
     const [result] = await db.query(
-        'INSERT INTO users (username, email, password) VALUES (?, ?, ?)',
-        [username, email, hashedPassword]
+        'INSERT INTO users (username, email, password, role) VALUES (?, ?, ?, ?)',
+        [username, email, hashedPassword, 'User']
     );
 
     return result.insertId;
@@ -125,12 +121,22 @@ export function generateToken(payload) {
  * @returns {import('jsonwebtoken').JwtPayload | null}
  */
 export function verifyToken(token) {
+    if (!token || typeof token !== 'string') {
+        logger.debug('verifyToken called with empty or non-string token');
+        return null;
+    }
+    const parts = token.split('.');
+    if (parts.length !== 3) {
+        logger.debug({ tokenSummary: token?.slice(0, 50) }, 'verifyToken received malformed token (not 3 parts)');
+        return null;
+    }
+
     try {
         const decoded = jwt.verify(token, publicKey, { algorithms: ['RS256'] });
         if (typeof decoded === 'string') return null;
         return decoded;
     } catch (err) {
-        logger.error({ err }, 'Token validering fejlede');
+        logger.debug({ err }, 'Token validering fejlede');
         return null;
     }
 }
@@ -150,5 +156,26 @@ export async function changePassword(username, currentPassword, newPassword) {
 
     const hashedPassword = await hashPassword(newPassword);
     await db.query('UPDATE users SET password = ? WHERE id = ?', [hashedPassword, user.id]);
+    return true;
+}
+
+/**
+ * @param {string} oldUsername
+ * @param {string} newUsername
+ * @returns {Promise<boolean>}
+ */
+export async function changeUsername(oldUsername, newUsername) {
+    const user = await getUserByUsername(oldUsername);
+    if (!user) throw new Error('Bruger findes ikke');
+        const [rows] = /** @type {[Array<{username_changed: number}>, any]} */ (
+        await db.query('SELECT username_changed FROM users WHERE id = ?', [user.id])
+    );
+    
+    if (rows && rows[0]?.username_changed) throw new Error('Du har allerede skiftet brugernavn');
+    const existing = await getUserByUsername(newUsername);
+    if (existing) throw new Error('Brugernavn er allerede taget');
+
+    await db.query('UPDATE users SET username = ?, username_changed = 1 WHERE id = ?', [newUsername, user.id]);
+    await db.query('UPDATE user_votes SET username = ? WHERE username = ?', [newUsername, oldUsername]);
     return true;
 }

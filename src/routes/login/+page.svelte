@@ -71,10 +71,10 @@
           /** @param {unknown} err */
           error: (err) => {
             if (err instanceof Error) {
-              logger.error({ msg: 'Adgangsfejl', err });
+              logger.error({ message: 'Adgangsfejl', err });
               return `Adgang forbudt: ${err.message}`;
             } else {
-              logger.error({ msg: 'Adgangsfejl', err });
+              logger.error({ message: 'Adgangsfejl', err });
               return 'Adgang forbudt: Ukendt fejl';
             }
           }
@@ -84,10 +84,10 @@
     } catch (err) {
       /** @param {unknown} err */
       if (err instanceof Error) {
-        logger.error({ msg: `Serverfejl ved login for bruger "${username}"`, err });
+        logger.error({ message: `Serverfejl ved login for bruger "${username}"`, err });
         toast.error("Serverfejl: " + err.message);
       } else {
-        logger.error({ msg: `Serverfejl ved login for bruger "${username}"`, err });
+        logger.error({ message: `Serverfejl ved login for bruger "${username}"`, err });
         toast.error("Serverfejl: Ukendt fejl");
       }
     }
@@ -130,26 +130,28 @@
     <div class="bg-white/20 backdrop-blur-lg rounded-3xl shadow-2xl p-12 w-full max-w-md border border-white/30">
       <h1 class="text-4xl font-bold text-white text-center mb-4">Log ind</h1>
 
-      <input
-        type="text"
-        bind:value={username}
-        placeholder="Brugernavn"
-        class="w-full mb-4 px-5 py-3 border border-white/40 rounded-xl bg-white/20 text-white"
-      />
+      <form on:submit|preventDefault={login}>
+        <input
+          type="text"
+          bind:value={username}
+          placeholder="Brugernavn"
+          class="w-full mb-4 px-5 py-3 border border-white/40 rounded-xl bg-white/20 text-white"
+        />
 
-      <input
-        type="password"
-        bind:value={password}
-        placeholder="Adgangskode"
-        class="w-full mb-6 px-5 py-3 border border-white/40 rounded-xl bg-white/20 text-white"
-      />
+        <input
+          type="password"
+          bind:value={password}
+          placeholder="Adgangskode"
+          class="w-full mb-6 px-5 py-3 border border-white/40 rounded-xl bg-white/20 text-white"
+        />
 
-      <button
-        on:click={login}
-        class="w-full mb-4 bg-purple-500/80 hover:bg-purple-600/90 text-white py-3 rounded-xl shadow-lg hover:shadow-xl transition font-semibold text-lg"
-      >
-        Log ind
-      </button>
+        <button
+          type="submit"
+          class="w-full mb-4 bg-purple-500/80 hover:bg-purple-600/90 text-white py-3 rounded-xl shadow-lg hover:shadow-xl transition font-semibold text-lg"
+        >
+          Log ind
+        </button>
+      </form>
 
       <button on:click={changeColor}
             class="mt-4 bg-white/30 hover:bg-white/50

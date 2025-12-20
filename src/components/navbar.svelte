@@ -2,15 +2,32 @@
   import { user } from '../stores/user.js';
   import { goto } from '$app/navigation';
   import toast from "svelte-5-french-toast";
+  import logger from '../lib/logger.js';
 
   export let links = [{ href: '/', label: 'Hjem' }];
 
   $: currentUser = $user;
 
   async function logout() {
+    const token = localStorage.getItem('jwt');
+    const role = localStorage.getItem('role');
+    const username = localStorage.getItem('username');
+
+    if (role === 'Admin' && username) {
+      try {
+        const io = (await import('socket.io-client')).default;
+        const sock = io('http://localhost:3000');
+        sock.emit('adminOnline', { username, online: false });
+        sock.disconnect();
+      } catch (error) {
+        logger.warn({ error: String(error) }, 'Socket error while emitting adminOnline=false during logout');
+      }
+    }
+
     await fetch('/api/logout', {
       method: 'POST',
-      credentials: 'include'
+      credentials: 'include',
+      headers: token ? { Authorization: `Bearer ${token}` } : {}
     });
 
     localStorage.removeItem('jwt');

@@ -118,14 +118,19 @@
           <h3 class="mt-4 bg-white/30 text-white font-semibold py-2 px-4 rounded-xl transition">Dagens spørgsmål</h3>
           <h1 class="text-2xl font-bold text-white mb-4 drop-shadow-lg">{poll.question}</h1>
           {#each Object.entries(poll.options) as [option, count]}
-            <div class={`mb-2 flex items-center justify-between p-2 rounded ${optionColors[option] ?? 'bg-gray-400'}`}>
-              <button class="text-white px-2 py-1 rounded" on:click={() => vote(option)}>
-                Stem {option}
-              </button>
+            <div
+              class={`mb-2 flex items-center justify-between p-2 rounded cursor-pointer transition hover:scale-[1.03] active:scale-95 ${optionColors[option] ?? 'bg-gray-400'}`}
+              on:click={() => vote(option)}
+              on:keydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { vote(option); e.preventDefault(); } }}
+              tabindex="0"
+              role="button"
+              aria-label={`Stem ${option}`}
+            >
+              <span class="text-white font-semibold">{option}</span>
               {#if count !== 1}
                 <span class="text-white">{count} stemmer</span>
               {:else}
-              <span class="text-white">{count} stemme</span>
+                <span class="text-white">{count} stemme</span>
               {/if}
             </div>
           {/each}

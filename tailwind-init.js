@@ -1,7 +1,6 @@
 import { writeFileSync } from "node:fs";
 import logger from "./src/lib/logger.js";
 
-// Simpel Tailwind config template
 const config = `/** @type {import('tailwindcss').Config} */
 module.exports = {
   content: ["./src/**/*.{html,js,svelte,ts}"],
