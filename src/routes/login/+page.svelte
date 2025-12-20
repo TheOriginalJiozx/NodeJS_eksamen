@@ -42,7 +42,10 @@
         return;
       }
 
-      localStorage.setItem('jwt', data.token);
+      if (data.token) {
+        localStorage.setItem('jwt', data.token);
+      }
+      
       localStorage.setItem('username', username);
       storeUser.set({ username });
       logger.info(`Bruger "${username}" logget ind succesfuldt`);

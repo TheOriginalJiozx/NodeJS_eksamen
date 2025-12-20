@@ -6,6 +6,7 @@
   import { goto } from '$app/navigation';
   import { writable } from 'svelte/store';
   import logger from '../../lib/logger.js';
+  import { user as storeUser } from '../../stores/user.js';
   import io from 'socket.io-client';
 
   /** @type {import('svelte/store').Writable<string>} */
@@ -52,9 +53,13 @@
 
   onMount(async () => {
 
-    const token = localStorage.getItem('jwt');
-
     try {
+      const token = localStorage.getItem('jwt');
+      if (!token) {
+        toast.error('Du har ikke adgang. Log venligst ind igen.');
+        goto('/login');
+        return;
+      }
       const res = await fetch('http://localhost:3000/api/profile', {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -66,16 +71,15 @@
         goto('/login');
         return;
       }
-
       const result = await res.json();
       userData = result;
       if (typeof result.username_changed !== 'undefined') {
         usernameChanged = !!result.username_changed;
       }
-      if (result.role) {
-        userData.role = result.role;
-        localStorage.setItem('role', result.role);
-      }
+        if (result.role) {
+          userData.role = result.role;
+          localStorage.setItem('role', result.role);
+        }
 
       socket = io('http://localhost:3000');
       socket.on('adminOnlineMessage', (data) => {
@@ -202,6 +206,63 @@
     }
   }
 
+  async function exportMyData() {
+    const token = localStorage.getItem('jwt');
+    try {
+      const res = await fetch('/api/me/export', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        toast.error(err?.message || 'Kunne ikke eksportere data');
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${userData.username}-export.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      toast.success('Data eksporteret');
+    } catch (err) {
+      logger.error({ err }, 'Fejl ved eksport');
+      toast.error('Serverfejl ved eksport');
+    }
+  }
+
+  async function deleteMyAccount() {
+    if (!confirm('Er du sikker på du vil slette din konto? Dette kan ikke fortrydes.')) return;
+    const token = localStorage.getItem('jwt');
+    try {
+      try {
+        await fetch('/api/logout', { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
+      } catch (e) {
+        logger.warn({ e }, 'Logout request before delete failed');
+      }
+
+      const res = await fetch('/api/me', {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(data?.message || 'Kunne ikke slette konto');
+        return;
+      }
+      toast.success('Konto slettet');
+      localStorage.removeItem('jwt');
+      localStorage.removeItem('username');
+      storeUser.set(null);
+      goto('/');
+    } catch (err) {
+      logger.error({ err }, 'Fejl ved sletning af konto');
+      toast.error('Serverfejl ved sletning');
+    }
+  }
+
   function toggleAdminOnline() {
     isAdminOnline = !isAdminOnline;
     localStorage.setItem('isAdminOnline', isAdminOnline ? 'true' : 'false');
@@ -299,6 +360,10 @@
               {isAdminOnline ? 'Vis admin offline status' : 'Vis admin online status'}
             </button>
           {/if}
+          <div class="mt-4 space-y-2">
+            <button class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-xl" on:click={exportMyData}>Eksportér mine data</button>
+            <button class="w-full bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-xl" on:click={deleteMyAccount}>Slet min konto</button>
+          </div>
         </div>
     </div>
   </div>

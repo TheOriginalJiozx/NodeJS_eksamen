@@ -99,21 +99,6 @@
       }
       socket = win.__globalSocket;
       if (socket) {
-        socket.emit('registerUser', userData.username);
-        if (socket) {
-          socket.on('newRound', (color) => {
-            message = 'Klik på denne farve: ' + color + '!';
-          });
-
-          socket.on('winner', (winner) => {
-            message = winner + ' vandt denne runde!';
-          });
-        }
-      }
-    } else {
-      socket = io('http://localhost:3000', { transports: ['websocket'] });
-      if (socket) {
-        socket.emit('registerUser', userData.username);
         socket.on('newRound', (color) => {
           message = 'Klik på denne farve: ' + color + '!';
         });
@@ -121,6 +106,21 @@
         socket.on('winner', (winner) => {
           message = winner + ' vandt denne runde!';
         });
+
+        socket.emit('registerUser', userData.username);
+      }
+    } else {
+      socket = io('http://localhost:3000', { transports: ['websocket'] });
+      if (socket) {
+        socket.on('newRound', (color) => {
+          message = 'Klik på denne farve: ' + color + '!';
+        });
+
+        socket.on('winner', (winner) => {
+          message = winner + ' vandt denne runde!';
+        });
+
+        socket.emit('registerUser', userData.username);
       }
     }
   });

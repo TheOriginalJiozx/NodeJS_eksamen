@@ -20,13 +20,12 @@
         sock.emit('adminOnline', { username, online: false });
         sock.disconnect();
       } catch (error) {
-        logger.warn({ error: String(error) }, 'Socket error while emitting adminOnline=false during logout');
+        logger.warn({ error: String(error) }, 'Socketfejl under afsendelse af adminOnline=false under logout');
       }
     }
 
     await fetch('/api/logout', {
       method: 'POST',
-      credentials: 'include',
       headers: token ? { Authorization: `Bearer ${token}` } : {}
     });
 

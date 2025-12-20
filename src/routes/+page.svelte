@@ -60,7 +60,7 @@
   };
 
   onMount(() => {
-    socket = io('http://localhost:3000', { transports: ['polling', 'websocket'], withCredentials: true });
+    socket = io('http://localhost:3000', { transports: ['polling', 'websocket'] });
     logger.info('Socket-forbindelse oprettet');
 
     /** @param {Poll} data */

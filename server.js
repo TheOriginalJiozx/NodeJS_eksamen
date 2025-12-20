@@ -5,7 +5,7 @@ import logger from './src/lib/logger.js';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import cors from 'cors';
-import { initializePollTables, getActivePoll, getActivePollData, recordVote, getUserVote } from './src/database.js';
+import { initializePollTables, getActivePoll, getActivePollData, recordVote } from './src/database.js';
 import { initializeHangman } from './src/games/hangman.js';
 import { initializeColorGame } from './src/games/colorgame.js';
 
@@ -13,7 +13,6 @@ const app = express();
 app.use(bodyParser.json());
 
 /**
- * Extract useful properties from an Error for structured logging.
  * @param {any} error
  */
 function errorInfo(error) {
@@ -121,7 +120,7 @@ app.post('/api/login', async (req, res) => {
       }, 500);
     }
 
-    res.status(200).json({ token });
+    res.status(200).json({ message: 'Login successful', token });
   } catch (error) {
     res.status(500).json({ message: error instanceof Error ? error.message : 'Login fejlede' });
   }
@@ -130,9 +129,9 @@ app.post('/api/login', async (req, res) => {
 app.post('/api/change-password', async (req, res) => {
   try {
     const authHeader = req.headers['authorization'];
-    if (!authHeader) return res.status(401).json({ message: 'Token mangler' });
+    const token = authHeader ? authHeader.split(' ')[1] : null;
+    if (!token) return res.status(401).json({ message: 'Token mangler' });
 
-    const token = authHeader.split(' ')[1];
     const decoded = verifyToken(token);
     if (!decoded) return res.status(403).json({ message: 'Ugyldig token' });
 
@@ -154,9 +153,9 @@ app.post('/api/change-password', async (req, res) => {
 app.get('/api/protected', async (req, res) => {
   try {
     const authHeader = req.headers['authorization'];
-    if (!authHeader) return res.status(401).json({ message: 'Token mangler' });
+    const token = authHeader ? authHeader.split(' ')[1] : null;
+    if (!token) return res.status(401).json({ message: 'Token mangler' });
 
-    const token = authHeader.split(' ')[1];
     const decoded = verifyToken(token);
     if (!decoded) return res.status(403).json({ message: 'Ugyldig token' });
 
@@ -169,9 +168,9 @@ app.get('/api/protected', async (req, res) => {
 app.get('/api/profile', async (req, res) => {
   try {
     const authHeader = req.headers['authorization'];
-    if (!authHeader) return res.status(401).json({ message: 'Token mangler' });
+    const token = authHeader ? authHeader.split(' ')[1] : null;
+    if (!token) return res.status(401).json({ message: 'Token mangler' });
 
-    const token = authHeader.split(' ')[1];
     const decoded = verifyToken(token);
     logger.debug({ tokenSummary: token ? token.slice(0, 50) : null, decoded }, 'Profile: token/decoded');
     if (!decoded) return res.status(403).json({ message: 'Ugyldig token' });
@@ -190,8 +189,68 @@ app.get('/api/profile', async (req, res) => {
   }
 });
 
+// --- GDPR: Eksporter bruger-data ---
+app.get('/api/me/export', async (req, res) => {
+  try {
+    const authHeader = req.headers['authorization'];
+    if (!authHeader) return res.status(401).json({ message: 'Token mangler' });
+    const token = authHeader.split(' ')[1];
+    const decoded = verifyToken(token);
+    if (!decoded || !decoded.username) return res.status(403).json({ message: 'Ugyldig token' });
+
+    const username = decoded.username;
+    const user = await getUserByUsername(username);
+    if (!user) return res.status(404).json({ message: 'Bruger findes ikke' });
+
+    const databaseModule = await import('./src/database.js');
+    const [votes] = await databaseModule.db.query('SELECT * FROM user_votes WHERE username = ?', [username]);
+
+    const exportObject = {
+      user: { id: user.id, username: user.username, email: user.email, role: user.role },
+      votes: votes || []
+    };
+
+    res.setHeader('Content-Disposition', `attachment; filename="${username}-export.json"`);
+    res.setHeader('Content-Type', 'application/json');
+    res.status(200).send(JSON.stringify(exportObject, null, 2));
+  } catch (error) {
+    logger.error({ errorMessage: errorInfo(error) }, 'Fejl ved eksport af brugerdata');
+    res.status(500).json({ message: error instanceof Error ? error.message : 'Serverfejl' });
+  }
+});
+
+// --- GDPR: slet bruger-data (DSR: sletning) ---
+app.delete('/api/me', async (req, res) => {
+  try {
+    const authHeader = req.headers['authorization'];
+    if (!authHeader) return res.status(401).json({ message: 'Token mangler' });
+    const token = authHeader.split(' ')[1];
+    const decoded = verifyToken(token);
+    if (!decoded || !decoded.username) return res.status(403).json({ message: 'Ugyldig token' });
+
+    const username = decoded.username;
+    const user = await getUserByUsername(username);
+    if (!user) return res.status(404).json({ message: 'Bruger findes ikke' });
+
+    const databaseModule = await import('./src/database.js');
+    await databaseModule.db.query('DELETE FROM user_votes WHERE username = ?', [username]);
+    await databaseModule.db.query('DELETE FROM users WHERE id = ?', [user.id]);
+
+    try {
+      if (onlineAdmins && onlineAdmins.has && onlineAdmins.delete) onlineAdmins.delete(username);
+    } catch (error) {
+      logger.debug({ error }, 'Kunne ikke fjerne brugeren fra onlineAdmins under DSR-sletning');
+    }
+
+    logger.info({ msg: 'Bruger slettet via DSR', username: username.replace(/(.).*(.)/, '$1***$2') });
+    res.status(200).json({ message: 'Bruger og tilknyttede data slettet' });
+  } catch (error) {
+    logger.error({ err: errorInfo(error) }, 'Fejl ved sletning af brugerdata');
+    res.status(500).json({ message: error instanceof Error ? error.message : 'Serverfejl' });
+  }
+});
+
 app.post('/api/logout', async (req, res) => {
-  res.clearCookie('jwt', { path: '/' });
   try {
     const authHeader = req.headers['authorization'] || '';
     const token = authHeader.split(' ')[1];
@@ -217,12 +276,12 @@ app.post('/api/logout', async (req, res) => {
             }
           }
         } catch (error) {
-          logger.error({ error: errorInfo(error) }, 'Error during logout user lookup');
+          logger.error({ error: errorInfo(error) }, 'Fejl under søgning efter bruger ved udlogning');
         }
       }
     }
   } catch (error) {
-    logger.error({ error: errorInfo(error) }, 'Error processing logout');
+    logger.error({ error: errorInfo(error) }, 'Fejl ved behandling af logout');
   }
 
   res.status(200).json({ success: true });
@@ -377,9 +436,15 @@ io.on('connection', async (socket) => {
     if (originDisconnect) originDisconnect();
   });
 
-  // --- Bruger registrering --- 
   socket.on('registerUser', (username) => {
     socketUsers[socket.id] = username;
+    try {
+      if (colorGame && typeof colorGame.sendCurrentRound === 'function') {
+        colorGame.sendCurrentRound(socket);
+      }
+    } catch (error) {
+      logger.debug({ error }, 'Kunne ikke sende den aktuelle runde på registerUser');
+    }
   });
 
   // --- Afstemning ---
@@ -422,11 +487,11 @@ io.on('connection', async (socket) => {
         try {
           const databaseModule = await import('./src/database.js');
         } catch (error) {
-          logger.error({ err: errorInfo(error) }, 'Error marking user offline on disconnect');
+          logger.error({ err: errorInfo(error) }, 'Fejl ved markering af bruger offline ved afbrydelse');
         }
       })();
     }
-    logger.info({ socketId: socket.id }, 'Socket disconnected');
+    logger.info({ socketId: socket.id }, 'Socket er frakoblet');
     delete socketUsers[socket.id];
   });
 });
@@ -441,11 +506,11 @@ async function startServer() {
 
   const PORT = 3000;
   server.listen(PORT, () => {
-    logger.info({ port: PORT }, 'Backend API + WebSocket server running');
+    logger.info({ port: PORT }, 'Backend API + WebSocket-server kører');
   });
 }
 
 startServer().catch(error => {
-  logger.error({ err: errorInfo(error) }, 'Failed to start server');
+  logger.error({ err: errorInfo(error) }, 'Kunne ikke starte serveren');
   process.exit(1);
 });
