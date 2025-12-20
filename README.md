@@ -1,58 +1,65 @@
-# Svelte library
+# NodeJS eksamen
 
-Everything you need to build a Svelte library, powered by [`sv`](https://npmjs.com/package/sv).
+This project contains both a frontend (SvelteKit) and a backend (Express + Socket.IO). The README below explains how to install dependencies and run the backend and frontend for development.
 
-Read more about creating a library [in the docs](https://svelte.dev/docs/kit/packaging).
+**Prerequisites**
 
-## Creating a project
+- Node.js 18+ (recommended)
+- npm (or yarn / pnpm)
 
-If you're seeing this, you've probably already done this step. Congrats!
+**Install dependencies**
 
-```sh
-# create a new project in the current directory
-npx sv create
+Run this from the repository root:
 
-# create a new project in my-app
-npx sv create my-app
+```bash
+npm install
 ```
 
-## Developing
+**Start backend (Express + WebSocket)**
 
-Once you've created a project and installed dependencies with `npm install` (or `pnpm install` or `yarn`), start a development server:
+The backend is implemented in `server.js` and listens on port 3000 by default.
 
-```sh
+```bash
+# Run backend with nodemon (auto-restart on changes)
+nodemon server.js
+
+# Or run directly with node
+node server.js
+```
+
+**Start frontend (SvelteKit)**
+
+The frontend uses Vite/SvelteKit and runs on port 5173 by default.
+
+```bash
 npm run dev
-
-# or start the server and open the app in a new browser tab
-npm run dev -- --open
 ```
 
-Everything inside `src/lib` is part of your library, everything inside `src/routes` can be used as a showcase or preview app.
+**Notes**
 
-## Building
+- The frontend expects the backend at `http://localhost:3000` (CORS configured).
+- If you change ports, update the client fetch/socket URLs accordingly.
+- Database and environment configuration lives in `src/*` files and `server.js` — ensure your DB is available and configured before running the backend.
 
-To build your library:
+**Linting**
 
-```sh
-npm pack
+Run the linter with:
+
+```bash
+npm run lint
+
+# Fix problems automatically where possible
+npm run lint:fix
 ```
 
-To create a production version of your showcase app:
+**Building**
 
-```sh
+To build the frontend for production:
+
+```bash
 npm run build
 ```
 
-You can preview the production build with `npm run preview`.
+**Support**
 
-> To deploy your app, you may need to install an [adapter](https://svelte.dev/docs/kit/adapters) for your target environment.
-
-## Publishing
-
-Go into the `package.json` and give your package the desired name through the `"name"` option. Also consider adding a `"license"` field and point it to a `LICENSE` file which you can create from a template (one popular option is the [MIT license](https://opensource.org/license/mit/)).
-
-To publish your library to [npm](https://www.npmjs.com):
-
-```sh
-npm publish
-```
+If you need help starting the backend or connecting to your database, tell me which database you're using and any connection errors from the server console and I will help debug.
