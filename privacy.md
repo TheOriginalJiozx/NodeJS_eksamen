@@ -2,7 +2,7 @@
 
 This project stores minimal personal data to provide user accounts and game features: username and email. Below is a short policy you can adapt for your deployment.
 
-**Data controller**: You (or your org). Provide contact details here.
+**Data controller**: Colouriana
 
 **What we store**
 - Account: username, email, hashed password, role
@@ -24,4 +24,4 @@ This project stores minimal personal data to provide user accounts and game feat
 - Passwords are hashed with bcrypt. JWTs are used for authentication.
 
 **Contact**
-- Add contact info and complaint procedures here.
+- For contact, contact ```TheOriginalJiozx``` on GitHub.
