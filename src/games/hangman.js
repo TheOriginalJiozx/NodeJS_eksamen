@@ -19,6 +19,8 @@
  * @property {number} [score]
  */
 
+import logger from '../lib/logger.js';
+
 /**
  * @typedef {Object} HangmanInstance
  * @property {() => HangmanGame} getGame
@@ -75,6 +77,11 @@ function sendHangmanStatus(hangmanNamespace, target = null) {
     })),
     allUsers: allHangmanUsers
   };
+  try {
+    logger.debug({ payload }, 'Hangman: sending status payload');
+  } catch (e) {
+    /* ignore */
+  }
   if (target) {
     target.emit('status', payload);
     return;
@@ -133,6 +140,11 @@ export function initializeHangman(hangmanNamespace) {
       if (!allHangmanUsers.includes(name)) {
         allHangmanUsers.push(name);
         sendHangmanStatus(hangmanNamespace);
+      }
+      try {
+          logger.debug({ name, allHangmanUsers }, 'Hangman: registreret navn og nuværende brugerliste');
+      } catch (e) {
+        /* ignore logging errors */
       }
       if (callback) callback({ success: true });
     },
@@ -209,6 +221,13 @@ export function initializeHangman(hangmanNamespace) {
         type: 'add',
         users: socket.name
       });
+    },
+
+    /**
+     * @param {HangmanSocket} socket
+     */
+    handleRequestStatus: (socket) => {
+      sendHangmanStatus(hangmanNamespace, socket);
     },
 
     /**

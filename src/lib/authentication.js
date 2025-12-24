@@ -135,8 +135,8 @@ export function verifyToken(token) {
         const decoded = jwt.verify(token, publicKey, { algorithms: ['RS256'] });
         if (typeof decoded === 'string') return null;
         return decoded;
-    } catch (err) {
-        logger.debug({ err }, 'Token validering fejlede');
+    } catch (error) {
+        logger.debug({ error }, 'Token validering fejlede');
         return null;
     }
 }

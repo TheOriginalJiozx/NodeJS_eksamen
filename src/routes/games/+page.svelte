@@ -6,6 +6,8 @@
   import Navbar from '../../components/navbar.svelte';
   import Footer from '../../components/footer.svelte';
   import { goto } from '$app/navigation';
+  import apiFetch from '../../lib/api.js';
+  import { getToken, clearAuthenticationState } from '../../stores/authentication.js';
 
   /** @type {import('svelte/store').Writable<string>} */
   const backgroundGradient = writable('from-blue-400 via-cyan-400 to-indigo-400');
@@ -54,18 +56,16 @@
    */
 
   onMount(async () => {
-    const token = localStorage.getItem('jwt');
+    const token = getToken();
 
     if (!token) {
       toast.error('Du er ikke logget ind');
+      clearAuthenticationState();
       goto('/login');
       return;
     }
 
-    /** @type {Response} */
-    const response = await fetch('http://localhost:3000/api/games', {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    const response = await apiFetch('/api/games');
 
     if (!response.ok) {
       toast.error('Kunne ikke hente brugerdata');

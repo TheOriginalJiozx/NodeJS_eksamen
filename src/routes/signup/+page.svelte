@@ -5,6 +5,7 @@
   import { writable } from 'svelte/store';
   import logger from '../../lib/logger.js';
   import { user as storeUser } from '../../stores/user.js';
+  import apiFetch from '../../lib/api.js';
 
   let username = '';
   let email = '';
@@ -29,7 +30,7 @@
       logger.debug(`Forsøger at registrere bruger: "${username}"`);
 
       /** @type {Response} */
-      const res = await fetch('http://localhost:3000/api/register', {
+      const res = await apiFetch('/api/users', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, email, password })
@@ -111,11 +112,13 @@
             on:blur={async () => {
               if (!username) return;
               try {
-                const res = await fetch(`/api/check-username?username=${encodeURIComponent(username)}`);
-                if (res.ok) {
-                  const data = await res.json();
-                  if (!data.available) usernameError = 'Brugernavn er allerede taget';
-                }
+                try {
+                  const res = await apiFetch(`/api/check-username?username=${encodeURIComponent(username)}`);
+                  if (res.ok) {
+                    const data = await res.json();
+                    if (!data.available) usernameError = 'Brugernavn er allerede taget';
+                  }
+                } catch (error) { logger.debug({ error }, 'signup: check-username apiFetch failed'); }
               } catch (error) {
                 logger.error({ message: `Fejl ved username-availability check for "${username}"`, error });
               }
@@ -136,11 +139,13 @@
             on:blur={async () => {
               if (!email) return;
               try {
-                const res = await fetch(`/api/check-email?email=${encodeURIComponent(email)}`);
-                if (res.ok) {
-                  const data = await res.json();
-                  if (!data.available) emailError = 'E-mail er allerede i brug';
-                }
+                try {
+                  const res = await apiFetch(`/api/check-email?email=${encodeURIComponent(email)}`);
+                  if (res.ok) {
+                    const data = await res.json();
+                    if (!data.available) emailError = 'E-mail er allerede i brug';
+                  }
+                } catch (error) { logger.debug({ error }, 'signup: check-email apiFetch failed'); }
               } catch (error) {
                 logger.error({ message: `Fejl ved email-availability check for "${email}"`, error });
               }

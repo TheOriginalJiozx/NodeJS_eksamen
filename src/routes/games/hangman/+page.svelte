@@ -1,11 +1,14 @@
 <script>
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { writable } from 'svelte/store';
   import { io } from 'socket.io-client';
   import toast from 'svelte-5-french-toast';
   import Navbar from '../../../components/navbar.svelte';
   import Footer from '../../../components/footer.svelte';
   import { goto } from '$app/navigation';
+  import apiFetch from '../../../lib/api.js';
+  import logger from '../../../lib/logger.js';
+  import { getToken, clearAuthenticationState } from '../../../stores/authentication.js';
 
   /** @type {import('svelte/store').Writable<string>} */
   const backgroundGradient = writable('from-indigo-700 via-purple-700 to-fuchsia-600');
@@ -48,7 +51,6 @@
    * @property {number} [score]
    */
 
-  /** Hangman state */
   /** @type {import('socket.io-client').Socket | null} */
   let hangmanSocket = null;
   /** @type {HangmanGame | null} */
@@ -66,6 +68,8 @@
   /** @type {string | null} */
   let hangmanWinner = null;
   /** @type {string | null} */
+  let lastAnswer = null;
+  /** @type {string | null} */
   let selectedRoomId = null;
   /** @type {Array<{id:string,number:number,creator:string,users:string[]}>} */
   let availableRooms = [];
@@ -77,6 +81,8 @@
   let score = 0;
   /** @type {string} */
   let letterGuess = '';
+  /** @type {(() => void) | null} */
+  let cleanupHangmanHandlers = null;
 
   /** @returns {string} */
   function hangmanArt() {
@@ -109,7 +115,7 @@
       toast.error('Du skal vælge et ord for at starte spillet');
       return;
     }
-    hangmanSocket.emit('join', { name: userData.username, word });
+    if (hangmanSocket) hangmanSocket.emit('join', { name: userData.username, word });
   }
 
   /** @returns {void} */
@@ -123,34 +129,33 @@
       toast.error('Du skal vælge et spil');
       return;
     }
-    hangmanSocket.emit('join', { name: userData.username, roomId: selectedRoomId });
+    if (hangmanSocket) hangmanSocket.emit('join', { name: userData.username, roomId: selectedRoomId });
   }
 
   /** @returns {void} */
   function guessLetter() {
     if (!letterGuess || !hangmanSocket) return;
-    hangmanSocket.emit('letter', letterGuess);
+    if (hangmanSocket) hangmanSocket.emit('letter', letterGuess);
     letterGuess = '';
   }
 
   /** @returns {void} */
   function sendChat() {
     if (!chatInput.trim() || !hangmanSocket) return;
-    hangmanSocket.emit('chat', { message: chatInput });
+    if (hangmanSocket) hangmanSocket.emit('chat', { message: chatInput });
     chatInput = '';
   }
 
   onMount(async () => {
-    const token = localStorage.getItem('jwt');
+    const token = getToken();
     if (!token) {
       toast.error('Du er ikke logget ind');
+      clearAuthenticationState();
       goto('/login');
       return;
     }
 
-    const response = await fetch('http://localhost:3000/api/games', {
-      headers: { Authorization: `Bearer ${token}` }
-    });
+    const response = await apiFetch('/api/games');
     if (!response.ok) {
       toast.error('Kunne ikke hente brugerdata');
       goto('/login');
@@ -171,78 +176,14 @@
 
     if (!hangmanSocket) return;
 
-    const sockAny = /** @type {any} */ (hangmanSocket);
-    if (!sockAny.__handlersAttached) {
-      hangmanSocket.on('start', (game) => {
-        hangmanGame = game;
-        score = game.score || 0;
-        hasActiveHangman = true;
-        chatMessages = [];
-      });
+    const socketAny = /** @type {any} */ (hangmanSocket);
 
-      hangmanSocket.on('starter', (data) => {
-        isHangmanStarter = !!data?.isStarter;
-      });
-
-      hangmanSocket.on('users', (data) => {
-        if (data.type === 'add') {
-          const incomingUsers = Array.isArray(data.users) ? data.users : [data.users];
-          hangmanUsers = Array.from(new Set([...hangmanUsers, ...incomingUsers]));
-        }
-        if (data.type === 'remove') {
-          const toRemove = Array.isArray(data.users) ? data.users : [data.users];
-          hangmanUsers = hangmanUsers.filter((u) => !toRemove.includes(u));
-        }
-      });
-
-      hangmanSocket.on('correctLetter', (data) => { hangmanGame = data.game; });
-      hangmanSocket.on('wrongLetter', (data) => { hangmanGame = data.game; });
-      hangmanSocket.on('duplicateLetter', (data) => { toast.error(`Bogstavet '${data.letter}' er allerede gættet`); });
-
-      hangmanSocket.on('gameOver', (data) => {
-        hangmanGame = null;
-        hangmanWinner = data?.winner || null;
-        chatMessages = [];
-        const message = data.message || `Spillet er slut! Svaret var: ${data.answer}`;
-        toast.success(message);
-      });
-
-      hangmanSocket.on('gameError', (data) => { toast.error(data.message || 'Hangman fejl'); });
-
-      hangmanSocket.on('status', (data) => {
-        hasActiveHangman = !!data?.active;
-        availableRooms = data?.rooms || [];
-        allHangmanUsers = data?.allUsers || [];
-        if (!selectedRoomId && availableRooms.length > 0) selectedRoomId = availableRooms[0].id;
-      });
-
-      hangmanSocket.on('chat', (data) => { chatMessages = [...chatMessages, { name: data.name, message: data.message }]; });
-
-      hangmanSocket.on('roomLeft', () => {
-        hangmanGame = null;
-        hangmanUsers = [];
-        hangmanWinner = null;
-        chatMessages = [];
-        isHangmanStarter = false;
-      });
-
-      sockAny.__handlersAttached = true;
-    }
-
-    if (hangmanSocket) hangmanSocket.emit('set name', userData.username);
-
-    hangmanSocket.on('start', (game) => {
-      hangmanGame = game;
-      score = game.score || 0;
-      hasActiveHangman = true;
-      chatMessages = [];
-    });
-
-    hangmanSocket.on('starter', (data) => {
-      isHangmanStarter = !!data?.isStarter;
-    });
-
-    hangmanSocket.on('users', (data) => {
+    /** @param {any} game */
+    const handleStart = (game) => { hangmanGame = game; score = game.score || 0; hasActiveHangman = true; chatMessages = []; };
+    /** @param {any} data */
+    const handleStarter = (data) => { isHangmanStarter = !!data?.isStarter; };
+    /** @param {any} data */
+    const handleUsers = (data) => {
       if (data.type === 'add') {
         const incomingUsers = Array.isArray(data.users) ? data.users : [data.users];
         hangmanUsers = Array.from(new Set([...hangmanUsers, ...incomingUsers]));
@@ -251,38 +192,118 @@
         const toRemove = Array.isArray(data.users) ? data.users : [data.users];
         hangmanUsers = hangmanUsers.filter((u) => !toRemove.includes(u));
       }
-    });
-
-    hangmanSocket.on('correctLetter', (data) => { hangmanGame = data.game; });
-    hangmanSocket.on('wrongLetter', (data) => { hangmanGame = data.game; });
-    hangmanSocket.on('duplicateLetter', (data) => { toast.error(`Bogstavet '${data.letter}' er allerede gættet`); });
-
-    hangmanSocket.on('gameOver', (data) => {
-      hangmanGame = null;
-      hangmanWinner = data?.winner || null;
-      chatMessages = [];
-      const message = data.message || `Spillet er slut! Svaret var: ${data.answer}`;
-      toast.success(message);
-    });
-
-    hangmanSocket.on('gameError', (data) => { toast.error(data.message || 'Hangman fejl'); });
-
-    hangmanSocket.on('status', (data) => {
+    };
+    /** @param {any} data */
+    const handleCorrect = (data) => { hangmanGame = data.game; };
+    /** @param {any} data */
+    const handleWrong = (data) => { hangmanGame = data.game; };
+    /** @param {any} data */
+    const handleDuplicate = (data) => { toast.error(`Bogstavet '${data.letter}' er allerede gættet`); };
+    /** @param {any} data */
+    const handleGameOver = (data) => { hangmanGame = null; hangmanWinner = data?.winner || null; lastAnswer = data?.answer || null; hasActiveHangman = false; chatMessages = []; const message = data.message || `Spillet er slut! Svaret var: ${data.answer}`; toast.success(message); };
+    /** @param {any} data */
+    const handleGameError = (data) => { toast.error(data.message || 'Hangman fejl'); };
+    /** @param {any} data */
+    const handleStatus = (data) => {
+      try { logger.debug({ data }, 'hangman: status modtaget'); } catch (e) {}
       hasActiveHangman = !!data?.active;
       availableRooms = data?.rooms || [];
       allHangmanUsers = data?.allUsers || [];
-      if (!selectedRoomId && availableRooms.length > 0) selectedRoomId = availableRooms[0].id;
-    });
+      if (availableRooms.length > 0) {
+        const firstRoomId = availableRooms[0].id;
+        const selectedStillValid = selectedRoomId && availableRooms.some(r => r.id === selectedRoomId);
+        if (!selectedStillValid) selectedRoomId = firstRoomId;
+      }
+    };
+    /** @param {any} data */
+    const handleChat = (data) => { chatMessages = [...chatMessages, { name: data.name, message: data.message }]; };
+    const handleRoomLeft = () => { hangmanGame = null; hangmanUsers = []; hangmanWinner = null; chatMessages = []; isHangmanStarter = false; };
 
-    hangmanSocket.on('chat', (data) => { chatMessages = [...chatMessages, { name: data.name, message: data.message }]; });
+    socketAny.on('start', handleStart);
+    socketAny.on('starter', handleStarter);
+    socketAny.on('users', handleUsers);
+    socketAny.on('correctLetter', handleCorrect);
+    socketAny.on('wrongLetter', handleWrong);
+    socketAny.on('duplicateLetter', handleDuplicate);
+    socketAny.on('gameOver', handleGameOver);
+    socketAny.on('gameError', handleGameError);
+    socketAny.on('status', handleStatus);
+    socketAny.on('chat', handleChat);
+    socketAny.on('roomLeft', handleRoomLeft);
 
-    hangmanSocket.on('roomLeft', () => {
-      hangmanGame = null;
-      hangmanUsers = [];
-      hangmanWinner = null;
-      chatMessages = [];
-      isHangmanStarter = false;
-    });
+    cleanupHangmanHandlers = () => {
+      try {
+        if (hangmanSocket) {
+          hangmanSocket.off('start', handleStart);
+          hangmanSocket.off('starter', handleStarter);
+          hangmanSocket.off('users', handleUsers);
+          hangmanSocket.off('correctLetter', handleCorrect);
+          hangmanSocket.off('wrongLetter', handleWrong);
+          hangmanSocket.off('duplicateLetter', handleDuplicate);
+          hangmanSocket.off('gameOver', handleGameOver);
+          hangmanSocket.off('gameError', handleGameError);
+          hangmanSocket.off('status', handleStatus);
+          hangmanSocket.off('chat', handleChat);
+          hangmanSocket.off('roomLeft', handleRoomLeft);
+        }
+      } catch (error) {
+        logger.debug({ errorMessage: error }, 'hangman: fejl under oprydning i onDestroy');
+      }
+    };
+
+    function trySetHangmanName() {
+      if (!hangmanSocket || !userData || !userData.username) return;
+      try {
+        const sendRequestStatus = () => {
+          try {
+            if (hangmanSocket && hangmanSocket.connected) hangmanSocket.emit('requestStatus');
+            else if (hangmanSocket) hangmanSocket.once('connect', () => { if (hangmanSocket) hangmanSocket.emit('requestStatus'); });
+          } catch (error) {
+            logger.debug({ error: error }, 'hangman: requestStatus fejlede');
+          }
+        };
+
+        const emitWithAck = () => {
+          try {
+            if (hangmanSocket) {
+              hangmanSocket.emit('set name', userData.username, function() {
+                /** @type {{ success?: boolean } | undefined} */
+                const response = arguments && arguments.length > 0 ? /** @type {any} */ (arguments[0]) : undefined;
+                try {
+                  if (response && response.success) sendRequestStatus();
+                  else sendRequestStatus();
+                } catch (error) {
+                  logger.debug({ errorMessage: error }, 'hangman: callback efter set name mislykkedes');
+                  sendRequestStatus();
+                }
+              });
+            }
+          } catch (error) {
+            logger.debug({ errorMessage: error }, 'hangman: emit set name fejlede');
+          }
+        };
+
+        if (hangmanSocket.connected) {
+          emitWithAck();
+        } else {
+          hangmanSocket.once('connect', () => {
+            try { emitWithAck(); } catch (error) { logger.debug({ error }, 'hangman: emit af navn mislykkedes ved forbindelse'); }
+          });
+        }
+      } catch (error) {
+        logger.debug({ error }, 'hangman: emit set name failed');
+      }
+    }
+
+    trySetHangmanName();
+  });
+
+  onDestroy(() => {
+    try {
+      if (cleanupHangmanHandlers) cleanupHangmanHandlers();
+    } catch (error) {
+      logger.debug({ error }, 'hangman: error during onDestroy');
+    }
   });
 </script>
 
@@ -327,7 +348,7 @@
 
           {#if !isHangmanStarter}
             <br />
-            <input type="text" maxlength="1" bind:value={letterGuess} on:keypress={(e) => { if (e.key === 'Enter') guessLetter(); }} placeholder="Skriv et bogstav" class="text-black px-2 py-1 rounded" />
+            <input type="text" maxlength="1" bind:value={letterGuess} on:keypress={(error) => { if (error.key === 'Enter') guessLetter(); }} placeholder="Skriv et bogstav" class="text-black px-2 py-1 rounded" />
             <button class="ml-2 px-3 py-1 bg-green-500 rounded text-white" on:click={guessLetter}>Gæt</button>
           {:else}
             <p class="mt-4 text-sm italic">Du kan ikke gætte i dit eget spil</p>
@@ -340,7 +361,7 @@
               {/each}
             </div>
             <div class="flex gap-2">
-              <input type="text" bind:value={chatInput} on:keypress={(e) => { if (e.key === 'Enter') sendChat(); }} placeholder="Skriv en besked..." class="text-black px-2 py-1 rounded flex-1" />
+              <input type="text" bind:value={chatInput} on:keypress={(error) => { if (error.key === 'Enter') sendChat(); }} placeholder="Skriv en besked..." class="text-black px-2 py-1 rounded flex-1" />
               <button class="px-3 py-1 bg-blue-500 rounded text-white" on:click={sendChat}>Send</button>
             </div>
           </div>
@@ -353,17 +374,19 @@
         <h3>Online spillere:</h3>
         <ul>
           {#if hangmanGame}
-            {#each hangmanUsers as u}
-              <li>{u}</li>
+            {#each hangmanUsers as users}
+              <li>{users}</li>
             {/each}
           {:else}
-            {#each allHangmanUsers as u}
-              <li>{u}</li>
+            {#each allHangmanUsers as allUsers}
+              <li>{allUsers}</li>
             {/each}
           {/if}
         </ul>
         {#if hangmanWinner}
-          <p class="mt-3 font-bold bg-green-500 text-white-500">🎉 {hangmanWinner} Ordet blev gættet!</p>
+          <p class="mt-3 font-bold bg-green-500 text-white">🎉 Ordet blev gættet!</p>
+        {:else if !hangmanWinner && !hasActiveHangman}
+          <p class="mt-3 font-bold bg-red-500 text-white">{#if lastAnswer} Ordet "{lastAnswer}" blev desværre ikke gættet.{/if}</p>
         {/if}
       </div>
     </div>

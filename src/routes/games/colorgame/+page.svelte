@@ -6,13 +6,15 @@
   import Navbar from '../../../components/navbar.svelte';
   import Footer from '../../../components/footer.svelte';
   import { goto } from '$app/navigation';
-
-  /** @typedef {{ username: string }} UserData */
-  /** @type {UserData} */
-  let userData = { username: '' };
+  import apiFetch from '../../../lib/api.js';
+  import { getToken, clearAuthenticationState } from '../../../stores/authentication.js';
 
   /** @type {import('svelte/store').Writable<string>} */
   const backgroundGradient = writable('from-orange-500 via-pink-500 to-rose-600');
+  
+  /** @typedef {{ username: string }} UserData */
+  /** @type {UserData} */
+  let userData = { username: '' };
 
   /**
    * @returns {void}
@@ -72,17 +74,16 @@
   }
 
   onMount(async () => {
-    const token = localStorage.getItem('jwt');
+    const token = getToken();
 
     if (!token) {
       toast.error('Du er ikke logget ind');
+      clearAuthenticationState();
       goto('/login');
       return;
     }
 
-    const response = await fetch('http://localhost:3000/api/games', {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    const response = await apiFetch('/api/games');
 
     if (!response.ok) {
       toast.error('Kunne ikke hente brugerdata');

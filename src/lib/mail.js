@@ -27,7 +27,7 @@ export async function sendEmail({ to, subject, text, html }) {
             html
         });
         return info;
-    } catch (err) {
-        throw err;
+    } catch (error) {
+        throw error;
     }
 }

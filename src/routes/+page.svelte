@@ -70,11 +70,11 @@
     });
 
     /** @param {unknown} err */
-    socket.on('connect_error', (err) => {
-      if (err instanceof Error) {
-        logger.error({ err }, 'Socket fejl');
+    socket.on('connect_error', (error) => {
+      if (error instanceof Error) {
+        logger.error({ error }, 'Socket fejl');
       } else {
-        logger.error({ err }, 'Socket fejl: ukendt');
+        logger.error({ error }, 'Socket fejl: ukendt');
       }
       toast.error('Forbindelse til serveren fejlede');
     });
@@ -121,7 +121,7 @@
             <div
               class={`mb-2 flex items-center justify-between p-2 rounded cursor-pointer transition hover:scale-[1.03] active:scale-95 ${optionColors[option] ?? 'bg-gray-400'}`}
               on:click={() => vote(option)}
-              on:keydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { vote(option); e.preventDefault(); } }}
+              on:keydown={(error) => { if (error.key === 'Enter' || error.key === ' ') { vote(option); error.preventDefault(); } }}
               tabindex="0"
               role="button"
               aria-label={`Stem ${option}`}

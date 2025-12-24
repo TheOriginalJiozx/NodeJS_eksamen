@@ -1,5 +1,7 @@
 <script>
   import { user } from '../stores/user.js';
+  import apiFetch from '../lib/api.js';
+  import { clearAuthenticationState, auth } from '../stores/authentication.js';
   import { goto } from '$app/navigation';
   import toast from "svelte-5-french-toast";
   import logger from '../lib/logger.js';
@@ -9,9 +11,8 @@
   $: currentUser = $user;
 
   async function logout() {
-    const token = localStorage.getItem('jwt');
-    const role = localStorage.getItem('role');
-    const username = localStorage.getItem('username');
+    const role = typeof window !== 'undefined' ? localStorage.getItem('role') : null;
+    const username = typeof window !== 'undefined' ? localStorage.getItem('username') : null;
 
     if (role === 'Admin' && username) {
       try {
@@ -24,16 +25,27 @@
       }
     }
 
-    await fetch('/api/logout', {
-      method: 'POST',
-      headers: token ? { Authorization: `Bearer ${token}` } : {}
-    });
-
-    localStorage.removeItem('jwt');
-    localStorage.removeItem('username');
+    try {
+      await apiFetch('/api/auth/logout', { method: 'POST' });
+    } catch (error) {
+      logger.debug({ error }, 'Log ud anmodning fejlede');
+    }
+    clearAuthenticationState();
     user.set(null);
     toast.success("Du er nu logget ud");
-    goto('/');
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.removeItem('adminOnlineList');
+        localStorage.removeItem('lastWelcomedAdminList');
+      } catch (error) {
+        logger.debug({
+          error: String(error)
+        }, 'navbar: kunne ikke rydde vedvarende administratorlister');
+      }
+      goto('/login');
+    } else {
+      goto('/login');
+    }
   }
 </script>
 

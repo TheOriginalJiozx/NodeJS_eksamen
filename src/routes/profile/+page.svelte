@@ -8,6 +8,8 @@
   import logger from '../../lib/logger.js';
   import { user as storeUser } from '../../stores/user.js';
   import io from 'socket.io-client';
+  import apiFetch from '../../lib/api.js';
+  import { getToken, clearAuthenticationState } from '../../stores/authentication.js';
 
   /** @type {import('svelte/store').Writable<string>} */
   const backgroundGradient = writable('from-indigo-700 via-purple-700 to-fuchsia-600');
@@ -40,11 +42,7 @@
    */
   let userData = { username: '', role: '' };
 
-  let showChangePassword = false;
-  let currentPassword = '';
-  let newPassword = '';
-  let confirmPassword = '';
-  let changing = false;
+  
 
   let isAdminOnline = false;
   let adminOnlineMessage = '';
@@ -54,15 +52,14 @@
   onMount(async () => {
 
     try {
-      const token = localStorage.getItem('jwt');
+      const token = getToken();
       if (!token) {
         toast.error('Du har ikke adgang. Log venligst ind igen.');
+        clearAuthenticationState();
         goto('/login');
         return;
       }
-      const res = await fetch('http://localhost:3000/api/profile', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const res = await apiFetch('/api/auth/me');
 
       if (!res.ok) {
         toast.error('Du har ikke adgang. Log venligst ind igen.');
@@ -73,9 +70,6 @@
       }
       const result = await res.json();
       userData = result;
-      if (typeof result.username_changed !== 'undefined') {
-        usernameChanged = !!result.username_changed;
-      }
         if (result.role) {
           userData.role = result.role;
           localStorage.setItem('role', result.role);
@@ -83,7 +77,7 @@
 
       socket = io('http://localhost:3000');
       socket.on('adminOnlineMessage', (data) => {
-        logger.debug({ data }, 'CLIENT received adminOnlineMessage');
+        logger.debug({ data }, 'CLIENT modtog adminOnlineMessage');
         adminOnlineMessage = data.message || '';
         if (Array.isArray(data.admins)) {
           const nowOnline = data.admins.includes(userData.username);
@@ -94,12 +88,12 @@
 
       if (userData.role && String(userData.role).toLowerCase() === 'admin') {
         isAdminOnline = true;
-        logger.debug({ username: userData.username }, 'CLIENT: preparing to emit adminOnline');
+        logger.debug({ username: userData.username }, 'CLIENT: forbereder emit af adminOnline');
         const emitOnline = () => {
-          if (!socket) return logger.warn('socket not ready for emitOnline');
+          if (!socket) return logger.warn('socket er ikke klar til emitOnline');
           logger.debug({ username: userData.username }, 'CLIENT EMIT adminOnline');
           socket.emit('adminOnline', { username: userData.username, online: true });
-          logger.debug('CLIENT EMIT done');
+          logger.debug('CLIENT EMIT færdig');
         };
         if (socket?.connected) {
           emitOnline();
@@ -108,8 +102,8 @@
         }
       }
 
-    } catch (err) {
-      logger.error({ err }, 'Serverfejl ved hentning af profil');
+    } catch (error) {
+      logger.error({ error }, 'Serverfejl ved hentning af profil');
       toast.error('Serverfejl');
       localStorage.removeItem('jwt');
       localStorage.removeItem('username');
@@ -117,148 +111,126 @@
     }
   });
 
-  async function submitChangePassword() {
-    if (!currentPassword || !newPassword || !confirmPassword) {
-      toast.error('Alle felter skal udfyldes');
-      return;
-    }
-    if (newPassword.length < 6) {
-      toast.error('Ny adgangskode skal være mindst 6 tegn');
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      toast.error('Nye adgangskoder matcher ikke');
-      return;
-    }
-
-    const token = localStorage.getItem('jwt');
-
-    changing = true;
-    try {
-      const res = await fetch('http://localhost:3000/api/change-password', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({ currentPassword, newPassword })
-      });
-
-      const data = await res.json().catch(() => ({}));
-
-      if (!res.ok) {
-        toast.error(data?.message || 'Kunne ikke ændre adgangskode');
-        return;
-      }
-
-      toast.success('Adgangskode opdateret');
-      currentPassword = '';
-      newPassword = '';
-      confirmPassword = '';
-      showChangePassword = false;
-    } catch (err) {
-      logger.error({ err }, 'Serverfejl ved skift af adgangskode');
-      toast.error('Serverfejl');
-    } finally {
-      changing = false;
-    }
-  }
-
-  let showChangeUsername = false;
-  let newUsername = '';
-  let changingUsername = false;
-  let usernameChanged = false;
-  async function submitChangeUsername() {
-    if (!newUsername || newUsername.length < 3) {
-      toast.error('Nyt brugernavn skal være mindst 3 tegn');
-      return;
-    }
-    const token = localStorage.getItem('jwt');
-    changingUsername = true;
-    try {
-      const res = await fetch('http://localhost:3000/api/change-username', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({ newUsername })
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        toast.error(data?.message || 'Kunne ikke ændre brugernavn');
-        return;
-      }
-      toast.success('Brugernavn opdateret');
-      userData.username = newUsername;
-      localStorage.setItem('username', newUsername);
-      if (data.token) {
-        localStorage.setItem('jwt', data.token);
-      }
-      showChangeUsername = false;
-      newUsername = '';
-      usernameChanged = true;
-    } catch (err) {
-      logger.error({ err }, 'Serverfejl ved skift af brugernavn');
-      toast.error('Serverfejl');
-    } finally {
-      changingUsername = false;
-    }
-  }
-
   async function exportMyData() {
-    const token = localStorage.getItem('jwt');
+    let serverFilename = null;
     try {
-      const res = await fetch('/api/me/export', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const res = await apiFetch('/api/users/me/export');
       if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        toast.error(err?.message || 'Kunne ikke eksportere data');
-        return;
+        const error = await res.json().catch(() => ({}));
+        toast.error(error?.message || 'Kunne ikke eksportere data');
+        return false;
       }
-      const blob = await res.blob();
+      const exportJson = await res.json();
+      try {
+        const backupRes = await apiFetch('/api/users/backups', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(exportJson)
+        });
+        if (!backupRes.ok) {
+          logger.error({ status: backupRes.status }, 'Backup-slutpunkt svarede med fejl');
+          toast.error('Kunne ikke gemme backup på serveren');
+          return false;
+        }
+        const backupJson = await backupRes.json().catch(() => ({}));
+        let serverPath = backupJson && backupJson.path ? backupJson.path : null;
+        if (serverPath) {
+          const idx1 = serverPath.lastIndexOf('/');
+          const idx2 = serverPath.lastIndexOf('\\\\');
+          const idx = Math.max(idx1, idx2);
+          serverFilename = idx >= 0 ? serverPath.slice(idx + 1) : serverPath;
+        }
+      } catch (error) {
+        logger.error({ error }, 'Fejl ved kald af backup endpoint');
+        toast.error('Kunne ikke gemme backup på serveren');
+        return false;
+      }
+
+      const blob = new Blob([JSON.stringify(exportJson, null, 2)], { type: 'application/json' });
+      const filename = `${userData.username}-export.json`;
+      const navigatorAny = /** @type {any} */ (window.navigator);
+      if (navigatorAny && typeof navigatorAny.msSaveOrOpenBlob === 'function') {
+        try {
+          navigatorAny.msSaveOrOpenBlob(blob, filename);
+          toast.success('Data eksporteret');
+          return true;
+        } catch (error) {
+          logger.error({ error }, 'msSaveOrOpenBlob fejlede');
+          toast.error('Kunne ikke eksportere data');
+          return false;
+        }
+      }
+
       const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${userData.username}-export.json`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.style.display = 'none';
+      downloadAnchor.setAttribute('aria-hidden', 'true');
+      downloadAnchor.href = url;
+      downloadAnchor.download = filename;
+      try {
+        document.body.appendChild(downloadAnchor);
+        downloadAnchor.click();
+      } catch (error) {
+        logger.error({ error }, 'Kunne ikke udløse download via anker');
+        toast.error('Kunne ikke starte download');
+      } finally {
+        try {
+          downloadAnchor.remove();
+        } catch (error) {
+          logger.error({ error }, 'Kunne ikke fjerne midlertidigt download-anker');
+        }
+        try {
+          URL.revokeObjectURL(url);
+        } catch (error) {
+          logger.error({ error }, 'Kunne ikke revoke objekt-URL efter download');
+        }
+      }
       toast.success('Data eksporteret');
-    } catch (err) {
-      logger.error({ err }, 'Fejl ved eksport');
+      return serverFilename || true;
+    } catch (error) {
+      logger.error({ error }, 'Fejl ved eksport');
       toast.error('Serverfejl ved eksport');
+      return false;
     }
   }
 
   async function deleteMyAccount() {
     if (!confirm('Er du sikker på du vil slette din konto? Dette kan ikke fortrydes.')) return;
-    const token = localStorage.getItem('jwt');
     try {
-      try {
-        await fetch('/api/logout', { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
-      } catch (e) {
-        logger.warn({ e }, 'Logout request before delete failed');
+      const exported = await exportMyData();
+      let exportFilenameToSend = null;
+      if (exported === false) {
+        toast.error('Eksport mislykkedes. Prøv igen og sørg for eksport gemmes på serveren før sletning.');
+        return;
+      } else if (typeof exported === 'string') {
+        exportFilenameToSend = exported;
       }
 
-      const res = await fetch('/api/me', {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const res = await apiFetch('/api/users/me', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ confirm: true, exportFilename: exportFilenameToSend }) });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        toast.error(data?.message || 'Kunne ikke slette konto');
+
+      if (res.ok || res.status === 404) {
+        if (res.ok) toast.success('Konto slettet');
+        else toast.info('Konto ikke fundet. Du bliver logget ud.');
+
+        try { clearAuthenticationState(); } catch (error) {
+          logger.debug({ error }, 'deleteMyAccount: clearAuthenticationState fejlede under klient-side rydning');
+        }
+        localStorage.removeItem('jwt');
+        localStorage.removeItem('username');
+        localStorage.removeItem('role');
+        storeUser.set(null);
+        if (typeof window !== 'undefined') {
+          goto('/login');
+        } else {
+          goto('/login');
+        }
         return;
       }
-      toast.success('Konto slettet');
-      localStorage.removeItem('jwt');
-      localStorage.removeItem('username');
-      storeUser.set(null);
-      goto('/');
-    } catch (err) {
-      logger.error({ err }, 'Fejl ved sletning af konto');
+
+      toast.error(data?.message || 'Kunne ikke slette konto');
+    } catch (error) {
+      logger.error({ error }, 'Fejl ved sletning af konto');
       toast.error('Serverfejl ved sletning');
     }
   }
@@ -270,7 +242,6 @@
       socket.emit?.('adminOnline', { username: userData.username, online: isAdminOnline });
     }
   }
-
 </script>
 
 <Navbar />
@@ -289,68 +260,7 @@
       </button>
 
         <div class="mt-6 space-y-3">
-          {#if !usernameChanged}
-          <button
-            class="w-full bg-white/30 hover:bg-white/50 text-white font-semibold py-2 px-4 rounded-xl transition"
-            on:click={() => (showChangeUsername = !showChangeUsername)}
-          >
-            {showChangeUsername ? 'Luk skift brugernavn' : 'Skift brugernavn'}
-          </button>
-
-          {#if showChangeUsername}
-            <div class="space-y-3 bg-white text-black rounded-xl p-4 shadow-lg">
-              <input
-                type="text"
-                placeholder="Nyt brugernavn (min. 3 tegn)"
-                class="w-full px-3 py-2 rounded border border-gray-300 bg-white text-black focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                bind:value={newUsername}
-              />
-              <button
-                class="w-full bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-xl transition disabled:opacity-50"
-                on:click={submitChangeUsername}
-                disabled={changingUsername}
-              >
-                {changingUsername ? 'Skifter...' : 'Gem brugernavn'}
-              </button>
-            </div>
-          {/if}
-          {/if}
-          <button
-            class="w-full bg-white/30 hover:bg-white/50 text-white font-semibold py-2 px-4 rounded-xl transition"
-            on:click={() => (showChangePassword = !showChangePassword)}
-          >
-            {showChangePassword ? 'Luk skift adgangskode' : 'Skift adgangskode'}
-          </button>
-
-          {#if showChangePassword}
-            <div class="space-y-3 bg-white text-black rounded-xl p-4 shadow-lg">
-              <input
-                type="password"
-                placeholder="Nuværende adgangskode"
-                class="w-full px-3 py-2 rounded border border-gray-300 bg-white text-black focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                bind:value={currentPassword}
-              />
-              <input
-                type="password"
-                placeholder="Ny adgangskode (min. 6 tegn)"
-                class="w-full px-3 py-2 rounded border border-gray-300 bg-white text-black focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                bind:value={newPassword}
-              />
-              <input
-                type="password"
-                placeholder="Gentag ny adgangskode"
-                class="w-full px-3 py-2 rounded border border-gray-300 bg-white text-black focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                bind:value={confirmPassword}
-              />
-              <button
-                class="w-full bg-green-500 hover:bg-green-600 text-white font-semibold py-2 px-4 rounded-xl transition disabled:opacity-50"
-                on:click={submitChangePassword}
-                disabled={changing}
-              >
-                {changing ? 'Skifter...' : 'Gem adgangskode'}
-              </button>
-            </div>
-          {/if}
+          <a href="/settings" class="w-full block text-center bg-white/30 hover:bg-white/50 text-white font-semibold py-2 px-4 rounded-xl transition">Åbn indstillinger</a>
 
           {#if userData.role === 'Admin'}
             <button

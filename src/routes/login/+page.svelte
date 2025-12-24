@@ -3,6 +3,8 @@
   import Footer from "../../components/footer.svelte";
   import { goto } from '$app/navigation';
   import { user as storeUser } from '../../stores/user.js';
+  import { setAuthenticationState } from '../../stores/authentication.js';
+  import apiFetch from '../../lib/api.js';
   import toast from "svelte-5-french-toast";
   import { writable } from 'svelte/store';
   import logger from '../../lib/logger.js';
@@ -13,7 +15,8 @@
   /**
    * @typedef {Object} LoginResponse
    * @property {string} token
-   * @property {string} [message]
+    * @property {string} [message]
+    * @property {string} [role]
    */
 
   /**
@@ -27,7 +30,7 @@
       logger.debug(`Forsøger login for bruger "${username}"`);
 
       /** @type {Response} */
-      const res = await fetch('/api/login', {
+      const res = await apiFetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password })
@@ -43,18 +46,15 @@
       }
 
       if (data.token) {
-        localStorage.setItem('jwt', data.token);
+        setAuthenticationState({ token: data.token, username, role: data.role });
       }
-      
-      localStorage.setItem('username', username);
+
       storeUser.set({ username });
       logger.info(`Bruger "${username}" logget ind succesfuldt`);
       toast.success("Log ind succesfuldt!");
 
       await toast.promise(
-        fetch('/api/protected', {
-          headers: { Authorization: `Bearer ${data.token}` }
-        }).then(async (res) => {
+        apiFetch('/api/protected').then(async (res) => {
           /** @type {ProtectedResponse} */
           const protectedData = await res.json();
           if (!res.ok) {
@@ -68,29 +68,33 @@
           loading: 'Tjekker adgang...',
           /** @param {ProtectedResponse} protectedData */
           success: (protectedData) => {
-            goto('/profile');
+            if (typeof window !== 'undefined') {
+              window.location.assign('/profile');
+            } else {
+              goto('/profile');
+            }
             return `Adgang tilladt: Velkommen ${protectedData.username || ''}!`;
           },
-          /** @param {unknown} err */
-          error: (err) => {
-            if (err instanceof Error) {
-              logger.error({ message: 'Adgangsfejl', err });
-              return `Adgang forbudt: ${err.message}`;
+          /** @param {unknown} error */
+          error: (error) => {
+            if (error instanceof Error) {
+              logger.error({ message: 'Adgangsfejl', error });
+              return `Adgang forbudt: ${error.message}`;
             } else {
-              logger.error({ message: 'Adgangsfejl', err });
+              logger.error({ message: 'Adgangsfejl', error });
               return 'Adgang forbudt: Ukendt fejl';
             }
           }
         }
       );
 
-    } catch (err) {
+    } catch (error) {
       /** @param {unknown} err */
-      if (err instanceof Error) {
-        logger.error({ message: `Serverfejl ved login for bruger "${username}"`, err });
-        toast.error("Serverfejl: " + err.message);
+      if (error instanceof Error) {
+        logger.error({ message: `Serverfejl ved login for bruger "${username}"`, error });
+        toast.error("Serverfejl: " + error.message);
       } else {
-        logger.error({ message: `Serverfejl ved login for bruger "${username}"`, err });
+        logger.error({ message: `Serverfejl ved login for bruger "${username}"`, error });
         toast.error("Serverfejl: Ukendt fejl");
       }
     }
