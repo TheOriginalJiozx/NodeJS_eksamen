@@ -1,7 +1,7 @@
 <script>
   import Footer from "../../components/footer.svelte";
   import Navbar from '../../components/navbar.svelte';
-  import toast from "svelte-5-french-toast";
+  import { toast } from "svelte-5-french-toast";
   import { writable } from 'svelte/store';
   import logger from '../../lib/logger.js';
   import { user as storeUser } from '../../stores/user.js';
@@ -118,7 +118,7 @@
                     const data = await res.json();
                     if (!data.available) usernameError = 'Brugernavn er allerede taget';
                   }
-                } catch (error) { logger.debug({ error }, 'signup: check-username apiFetch failed'); }
+                } catch (error) { logger.debug({ error }, 'signup: check-username apiFetch fejlede'); }
               } catch (error) {
                 logger.error({ message: `Fejl ved username-availability check for "${username}"`, error });
               }
@@ -145,7 +145,7 @@
                     const data = await res.json();
                     if (!data.available) emailError = 'E-mail er allerede i brug';
                   }
-                } catch (error) { logger.debug({ error }, 'signup: check-email apiFetch failed'); }
+                } catch (error) { logger.debug({ error }, 'signup: check-email apiFetch fejlede'); }
               } catch (error) {
                 logger.error({ message: `Fejl ved email-availability check for "${email}"`, error });
               }

@@ -17,9 +17,10 @@ const app = express();
 app.use(bodyParser.json());
 
 /**
- * @param {any} error
+ * @param {import('express').Request} req
+ * @param {import('express').Response} res
+ * @param {import('express').NextFunction} next
  */
-
 function authenticate(req, res, next) {
   try {
     const authenticationHeader = req.headers['authorization'] || '';
@@ -92,7 +93,7 @@ let activePollId = null;
 const server = createServer(app);
 
 /** @type {Server} */
-const io = new Server(server, {
+const socketServer = new Server(server, {
   cors: {
     origin: 'http://localhost:5173',
     methods: ['GET', 'POST'],
@@ -103,14 +104,14 @@ const io = new Server(server, {
 /** @type {Record<string, string>}*/
 let socketUsers = {};
 
-const hangmanNamespace = io.of('/hangman');
+const hangmanNamespace = socketServer.of('/hangman');
 const hangman = initializeHangman(hangmanNamespace);
-const colorGame = initializeColorGame(io, socketUsers);
+const colorGame = initializeColorGame(socketServer, socketUsers);
 
 // --- Forbindelse af Hangman namespace ---
-hangmanNamespace.on('connection', (sock) => {
+hangmanNamespace.on('connection', (hangmanSocketRaw) => {
   /** @type {import('./src/games/hangman.js').HangmanSocket} */
-  const socket = /** @type {any} */ (sock);
+  const socket = /** @type {any} */ (hangmanSocketRaw);
   logger.info({ id: socket.id }, 'Hangman namespace: socket forbundet');
   hangman.handleConnection(socket);
 
@@ -124,10 +125,10 @@ hangmanNamespace.on('connection', (sock) => {
 
   socket.on('requestStatus', () => {
     try {
-      logger.debug({ id: socket.id }, 'Hangman requestStatus received');
+      logger.debug({ id: socket.id }, 'Hangman requestStatus modtaget');
       hangman.handleRequestStatus(socket);
     } catch (error) {
-      logger.error({ error }, 'Hangman requestStatus handler failed');
+      logger.error({ error }, 'Hangman requestStatus handler fejlede');
     }
   });
 
@@ -147,11 +148,11 @@ hangmanNamespace.on('connection', (sock) => {
 // --- Admin online tracking ---
 let onlineAdmins = new Set();
 
-app.set('io', io);
+app.set('socketServer', socketServer);
 app.set('onlineAdmins', onlineAdmins);
 app.set('socketUsers', socketUsers);
 
-attachSocketHandlers(io, { socketUsers, onlineAdmins, colorGame, activePollId, getActivePollData, recordVote, getActivePollId: () => activePollId });
+attachSocketHandlers(socketServer, { socketUsers, onlineAdmins, colorGame, activePollId, getActivePollData, recordVote, getActivePollId: () => activePollId });
 
 // --- Start server ---
 async function startServer() {

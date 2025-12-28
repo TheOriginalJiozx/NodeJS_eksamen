@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { writable } from 'svelte/store';
   import { io } from 'socket.io-client';
-  import toast from 'svelte-5-french-toast';
+  import { toast } from 'svelte-5-french-toast';
   import Navbar from '../../components/navbar.svelte';
   import Footer from '../../components/footer.svelte';
   import { goto } from '$app/navigation';

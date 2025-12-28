@@ -1,8 +1,8 @@
 <script>
   import '../tailwind.css';
   import { afterNavigate } from '$app/navigation';
-  import toast, { Toaster } from 'svelte-5-french-toast';
-  import io from 'socket.io-client';
+  import { toast, Toaster } from 'svelte-5-french-toast';
+  import { io } from 'socket.io-client';
   import { onMount, onDestroy } from 'svelte';
   import logger from '../lib/logger.js';
   import { user as storeUser } from '../stores/user.js';

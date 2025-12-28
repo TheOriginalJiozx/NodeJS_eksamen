@@ -1,13 +1,13 @@
 <script>
   import { onMount } from 'svelte';
-  import toast from 'svelte-5-french-toast';
+  import { toast } from 'svelte-5-french-toast';
   import Navbar from "../../components/navbar.svelte";
   import Footer from "../../components/footer.svelte";
   import { goto } from '$app/navigation';
   import { writable } from 'svelte/store';
   import logger from '../../lib/logger.js';
   import { user as storeUser } from '../../stores/user.js';
-  import io from 'socket.io-client';
+  import { io } from 'socket.io-client';
   import apiFetch from '../../lib/api.js';
   import { getToken, clearAuthenticationState } from '../../stores/authentication.js';
 
@@ -122,23 +122,25 @@
       }
       const exportJson = await res.json();
       try {
-        const backupRes = await apiFetch('/api/users/backups', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(exportJson)
-        });
+          const token = getToken();
+          const backupRes = await fetch('/api/users/backups', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+            body: JSON.stringify(exportJson)
+          });
         if (!backupRes.ok) {
           logger.error({ status: backupRes.status }, 'Backup-slutpunkt svarede med fejl');
-          toast.error('Kunne ikke gemme backup på serveren');
+          const errJson = await backupRes.json().catch(() => ({}));
+          toast.error(errJson?.message || 'Kunne ikke gemme backup på serveren');
           return false;
         }
         const backupJson = await backupRes.json().catch(() => ({}));
         let serverPath = backupJson && backupJson.path ? backupJson.path : null;
         if (serverPath) {
-          const idx1 = serverPath.lastIndexOf('/');
-          const idx2 = serverPath.lastIndexOf('\\\\');
-          const idx = Math.max(idx1, idx2);
-          serverFilename = idx >= 0 ? serverPath.slice(idx + 1) : serverPath;
+          const index1 = serverPath.lastIndexOf('/');
+          const index2 = serverPath.lastIndexOf('\\\\');
+          const index = Math.max(index1, index2);
+          serverFilename = index >= 0 ? serverPath.slice(index + 1) : serverPath;
         }
       } catch (error) {
         logger.error({ error }, 'Fejl ved kald af backup endpoint');

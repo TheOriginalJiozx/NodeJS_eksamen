@@ -12,6 +12,9 @@ node_modules
 # Database
 database.*
 
+# Backups
+/backups
+
 # OS
 .DS_Store
 Thumbs.db

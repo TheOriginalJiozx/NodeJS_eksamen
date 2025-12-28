@@ -8,23 +8,23 @@ let targetColor = '';
 const newRoundEvent = 'newRound';
 
 /**
- * @param {import('socket.io').Server} io
+ * @param {import('socket.io').Server} socketServer
  * @returns {void}
  */
-function startRound(io) {
+function startRound(socketServer) {
   const colors = ['Rød', 'Blå', 'Grøn', 'Gul', 'Sort', 'Guld', 'Lyserød', 'Turkis', 'Lilla', 'Brun'];
   targetColor = colors[Math.floor(Math.random() * colors.length)];
   roundActive = true;
-  io.emit(newRoundEvent, targetColor);
+  socketServer.emit(newRoundEvent, targetColor);
 }
 
 /**
- * @param {import('socket.io').Server} io
- * @param {Record<string, string>} socketUsers
+ * @param {import('socket.io').Server} socketServer
+ * @param {Record<string, {id:string|null,username:string}>} socketUsers
  * @returns {Object}
  */
-export function initializeColorGame(io, socketUsers) {
-  startRound(io);
+export function initializeColorGame(socketServer, socketUsers) {
+  startRound(socketServer);
 
   return {
     /**
@@ -35,9 +35,11 @@ export function initializeColorGame(io, socketUsers) {
     handleClick: (socket, color) => {
       if (roundActive && color === targetColor) {
         roundActive = false;
-        const winner = socketUsers[socket.id] || 'Ukendt';
-        io.emit('winner', winner);
-        setTimeout(() => startRound(io), 2000);
+        const rawEntry = socketUsers[socket.id];
+        const entry = /** @type {any} */ (rawEntry);
+        const winner = entry && typeof entry === 'object' ? entry.username : (entry || 'Ukendt');
+        socketServer.emit('winner', winner);
+        setTimeout(() => startRound(socketServer), 2000);
       }
     },
 

@@ -4,7 +4,7 @@
   import { writable } from 'svelte/store';
   import { onMount } from 'svelte';
   import { io, Socket } from 'socket.io-client';
-  import toast from 'svelte-5-french-toast';
+  import { toast } from 'svelte-5-french-toast';
   import { user } from '../stores/user.js';
   import logger from '../lib/logger.js';
 

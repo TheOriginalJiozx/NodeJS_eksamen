@@ -78,9 +78,9 @@ function sendHangmanStatus(hangmanNamespace, target = null) {
     allUsers: allHangmanUsers
   };
   try {
-    logger.debug({ payload }, 'Hangman: sending status payload');
-  } catch (e) {
-    /* ignore */
+    logger.debug({ payload }, 'Hangman: sender status payload');
+  } catch (error) {
+    logger.debug({ error }, 'Hangman: fejl ved logging af status payload');
   }
   if (target) {
     target.emit('status', payload);
@@ -143,8 +143,8 @@ export function initializeHangman(hangmanNamespace) {
       }
       try {
           logger.debug({ name, allHangmanUsers }, 'Hangman: registreret navn og nuværende brugerliste');
-      } catch (e) {
-        /* ignore logging errors */
+      } catch (error) {
+        logger.debug({ error }, 'Hangman: fejl ved logging af registreret navn');
       }
       if (callback) callback({ success: true });
     },

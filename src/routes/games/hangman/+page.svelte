@@ -2,7 +2,7 @@
   import { onMount, onDestroy } from 'svelte';
   import { writable } from 'svelte/store';
   import { io } from 'socket.io-client';
-  import toast from 'svelte-5-french-toast';
+  import { toast } from 'svelte-5-french-toast';
   import Navbar from '../../../components/navbar.svelte';
   import Footer from '../../../components/footer.svelte';
   import { goto } from '$app/navigation';
@@ -179,9 +179,9 @@
     const socketAny = /** @type {any} */ (hangmanSocket);
 
     /** @param {any} game */
-    const handleStart = (game) => { hangmanGame = game; score = game.score || 0; hasActiveHangman = true; chatMessages = []; };
+    const handleStart = (game) => { hangmanGame = /** @type {any} */ (game); score = (/** @type {any} */ (game)).score || 0; hasActiveHangman = true; chatMessages = []; };
     /** @param {any} data */
-    const handleStarter = (data) => { isHangmanStarter = !!data?.isStarter; };
+    const handleStarter = (data) => { isHangmanStarter = !!(/** @type {any} */ (data))?.isStarter; };
     /** @param {any} data */
     const handleUsers = (data) => {
       if (data.type === 'add') {
@@ -194,18 +194,18 @@
       }
     };
     /** @param {any} data */
-    const handleCorrect = (data) => { hangmanGame = data.game; };
+    const handleCorrect = (data) => { hangmanGame = /** @type {any} */ (data).game; };
     /** @param {any} data */
-    const handleWrong = (data) => { hangmanGame = data.game; };
+    const handleWrong = (data) => { hangmanGame = /** @type {any} */ (data).game; };
     /** @param {any} data */
-    const handleDuplicate = (data) => { toast.error(`Bogstavet '${data.letter}' er allerede gættet`); };
+    const handleDuplicate = (data) => { toast.error(`Bogstavet '${/** @type {any} */ (data).letter}' er allerede gættet`); };
     /** @param {any} data */
-    const handleGameOver = (data) => { hangmanGame = null; hangmanWinner = data?.winner || null; lastAnswer = data?.answer || null; hasActiveHangman = false; chatMessages = []; const message = data.message || `Spillet er slut! Svaret var: ${data.answer}`; toast.success(message); };
+    const handleGameOver = (data) => { hangmanGame = null; hangmanWinner = /** @type {any} */ (data)?.winner || null; lastAnswer = /** @type {any} */ (data)?.answer || null; hasActiveHangman = false; chatMessages = []; const message = /** @type {any} */ (data).message || `Spillet er slut! Svaret var: ${/** @type {any} */ (data).answer}`; toast.success(message); };
     /** @param {any} data */
-    const handleGameError = (data) => { toast.error(data.message || 'Hangman fejl'); };
+    const handleGameError = (data) => { toast.error((/** @type {any} */ (data)).message || 'Hangman fejl'); };
     /** @param {any} data */
     const handleStatus = (data) => {
-      try { logger.debug({ data }, 'hangman: status modtaget'); } catch (e) {}
+      try { logger.debug({ data }, 'hangman: status modtaget'); } catch (error) {}
       hasActiveHangman = !!data?.active;
       availableRooms = data?.rooms || [];
       allHangmanUsers = data?.allUsers || [];
@@ -216,7 +216,7 @@
       }
     };
     /** @param {any} data */
-    const handleChat = (data) => { chatMessages = [...chatMessages, { name: data.name, message: data.message }]; };
+    const handleChat = (data) => { chatMessages = [...chatMessages, { name: /** @type {any} */ (data).name, message: /** @type {any} */ (data).message }]; };
     const handleRoomLeft = () => { hangmanGame = null; hangmanUsers = []; hangmanWinner = null; chatMessages = []; isHangmanStarter = false; };
 
     socketAny.on('start', handleStart);
@@ -291,7 +291,7 @@
           });
         }
       } catch (error) {
-        logger.debug({ error }, 'hangman: emit set name failed');
+        logger.debug({ error }, 'hangman: emit set name fejlede');
       }
     }
 

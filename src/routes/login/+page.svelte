@@ -5,7 +5,7 @@
   import { user as storeUser } from '../../stores/user.js';
   import { setAuthenticationState } from '../../stores/authentication.js';
   import apiFetch from '../../lib/api.js';
-  import toast from "svelte-5-french-toast";
+  import { toast } from "svelte-5-french-toast";
   import { writable } from 'svelte/store';
   import logger from '../../lib/logger.js';
 

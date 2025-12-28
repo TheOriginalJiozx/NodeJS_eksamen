@@ -1,16 +1,16 @@
 <script>
   import { onMount } from 'svelte';
-  import toast from 'svelte-5-french-toast';
+  import { toast } from 'svelte-5-french-toast';
   import Navbar from '../../components/navbar.svelte';
   import Footer from '../../components/footer.svelte';
   import { goto } from '$app/navigation';
   import logger from '../../lib/logger.js';
-  import io from 'socket.io-client';
+  import { io } from 'socket.io-client';
   import { onDestroy } from 'svelte';
   import apiFetch from '../../lib/api.js';
   import { getToken, clearAuthenticationState, setAuthenticationState } from '../../stores/authentication.js';
 
-  /** @type {{ username: string, role: string|null }} */
+  /** @type {{ username: string, role: string | null }} */
   let userData = { username: '', role: null };
 
   let showChangePassword = false;
@@ -26,12 +26,12 @@
 
   let isAdminOnline = false;
   let adminOnlineMessage = '';
-  /** @type {import('socket.io-client').Socket|null|undefined} */
+  /** @type {import('socket.io-client').Socket | null} */
   let socket = null;
 
   onDestroy(() => {
     try {
-      if (userData && userData.role && String(userData.role).toLowerCase() === 'admin' && socket) {
+      if (userData && userData.role && String(userData.role).toLowerCase() === 'admin' && socket && typeof socket.emit === 'function') {
         try {
           socket.emit('adminOnline', { username: userData.username, online: false });
         } catch (error) {
@@ -77,7 +77,8 @@
       }
 
       socket = io('http://localhost:3000');
-      socket.on('adminOnlineMessage', (data) => {
+      if (socket && typeof socket.on === 'function') {
+        socket.on('adminOnlineMessage', (data) => {
         logger.debug({ data }, 'CLIENT modtog adminOnlineMessage');
         adminOnlineMessage = data.message || '';
         if (Array.isArray(data.admins)) {
@@ -85,17 +86,18 @@
           isAdminOnline = nowOnline;
           localStorage.setItem('isAdminOnline', nowOnline ? 'true' : 'false');
         }
-      });
+        });
+      }
 
-      if (userData.role && String(userData.role).toLowerCase() === 'admin') {
+        if (userData.role && String(userData.role).toLowerCase() === 'admin') {
         isAdminOnline = true;
         const emitOnline = () => {
-          if (!socket) return logger.warn('socket er ikke klar til emitOnline');
+          if (!socket || typeof socket.emit !== 'function') return logger.warn('socket er ikke klar til emitOnline');
           socket.emit('adminOnline', { username: userData.username, online: true });
         };
-        if (socket?.connected) {
+        if (socket && socket.connected) {
           emitOnline();
-        } else if (socket) {
+        } else if (socket && typeof socket.once === 'function') {
           socket.once('connect', emitOnline);
         }
       }
@@ -174,6 +176,21 @@
       }
       toast.success('Brugernavn opdateret');
       const oldUsername = userData.username || localStorage.getItem('username');
+      try {
+        if (oldUsername && socket) {
+            try {
+              if (socket && typeof socket.emit === 'function') {
+                socket.emit('adminOnline', { username: oldUsername, online: false });
+                logger.debug({ oldUsername }, 'CLIENT EMIT adminOnline offline for oldUsername');
+              }
+            } catch (error) {
+              logger.debug({ error }, 'Kunne ikke emit adminOnline offline for oldUsername');
+            }
+        }
+      } catch (error) {
+        logger.debug({ error }, 'Fejl under emit offline for oldUsername');
+      }
+
       userData.username = newUsername;
       localStorage.setItem('username', newUsername);
 
@@ -190,9 +207,18 @@
           localStorage.setItem('isAdminOnline', 'true');
           if (socket) {
             try {
-              socket.emit('adminOnline', { username: newUsername, online: true });
+              setTimeout(() => {
+                try {
+                  if (socket && typeof socket.emit === 'function') {
+                    socket.emit('adminOnline', { username: newUsername, online: true });
+                    logger.debug({ newUsername }, 'CLIENT EMIT adminOnline for newUsername');
+                  }
+                } catch (error) {
+                  logger.debug({ error }, 'Kunne ikke emit adminOnline efter brugernavnsskifte i settings');
+                }
+              }, 200);
             } catch (error) {
-              logger.debug({ error }, 'Kunne ikke emit adminOnline efter brugernavnsskifte i settings');
+              logger.debug({ error }, 'Kunne ikke schedule adminOnline emit efter brugernavnsskifte i settings');
             }
           }
         }
@@ -204,10 +230,11 @@
         if (storedWelcomed) {
           try {
             const array = JSON.parse(storedWelcomed);
-            if (Array.isArray(array) && array.includes(oldUsername)) {
-              const replaced = array.map(username => (username === oldUsername ? newUsername : username));
-              localStorage.setItem('lastWelcomedAdminList', JSON.stringify(replaced));
-              logger.debug({ oldUsername, newUsername, replaced }, 'Opdateret lastWelcomedAdminList efter brugernavnsskifte i settings');
+            if (Array.isArray(array)) {
+              const filtered = array.filter(u => u !== oldUsername);
+              if (!filtered.includes(newUsername)) filtered.push(newUsername);
+              localStorage.setItem('lastWelcomedAdminList', JSON.stringify(filtered));
+              logger.debug({ oldUsername, newUsername, filtered }, 'Opdateret lastWelcomedAdminList efter brugernavnsskifte i settings');
             }
           } catch (error) {
             logger.debug({ error }, 'Kunne ikke parse lastWelcomedAdminList under opdatering efter brugernavnsskifte i settings');
@@ -217,10 +244,13 @@
         if (storedAdminList) {
           try {
             const array2 = JSON.parse(storedAdminList);
-            if (Array.isArray(array2) && array2.includes(oldUsername)) {
-              const replaced2 = array2.map(username => (username === oldUsername ? newUsername : username));
-              localStorage.setItem('adminOnlineList', JSON.stringify(replaced2));
-              logger.debug({ oldUsername, newUsername, replaced2 }, 'Opdateret adminOnlineList efter brugernavnsskifte i settings');
+            if (Array.isArray(array2)) {
+              // remove oldUsername entries
+              const filtered2 = array2.filter(u => u !== oldUsername);
+              // ensure newUsername is present
+              if (!filtered2.includes(newUsername)) filtered2.push(newUsername);
+              localStorage.setItem('adminOnlineList', JSON.stringify(filtered2));
+              logger.debug({ oldUsername, newUsername, filtered2 }, 'Opdateret adminOnlineList efter brugernavnsskifte i settings');
             }
           } catch (error) {
             logger.debug({ error }, 'Kunne ikke parse adminOnlineList under opdatering efter brugernavnsskifte i settings');
@@ -247,7 +277,13 @@
     isAdminOnline = !isAdminOnline;
     localStorage.setItem('isAdminOnline', isAdminOnline ? 'true' : 'false');
     if (userData.role === 'Admin' && socket) {
-      socket.emit?.('adminOnline', { username: userData.username, online: isAdminOnline });
+      try {
+        if (socket && typeof socket.emit === 'function') {
+          socket.emit('adminOnline', { username: userData.username, online: isAdminOnline });
+        }
+      } catch (error) {
+        logger.debug({ error }, 'toggleAdminOnline: emit fejlede');
+      }
     }
   }
 </script>

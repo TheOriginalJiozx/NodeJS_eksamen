@@ -3,7 +3,7 @@
   import apiFetch from '../lib/api.js';
   import { clearAuthenticationState, auth } from '../stores/authentication.js';
   import { goto } from '$app/navigation';
-  import toast from "svelte-5-french-toast";
+  import { toast } from "svelte-5-french-toast";
   import logger from '../lib/logger.js';
 
   export let links = [{ href: '/', label: 'Hjem' }];

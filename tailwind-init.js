@@ -11,4 +11,4 @@ module.exports = {
 writeFileSync("tailwind.config.cjs", config);
 writeFileSync("postcss.config.cjs", `module.exports = { plugins: { tailwindcss: {}, autoprefixer: {} } };`);
 
-logger.info("Tailwind config files created!");
+logger.info('Tailwind konfigurationsfiler oprettet!');
