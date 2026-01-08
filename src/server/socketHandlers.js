@@ -55,9 +55,9 @@ export function attachSocketHandlers(socketServer, { socketUsers, onlineAdmins, 
    */
   function logAdminState(reason) {
     try {
-      const adminMap = serializeAdminSocketMap();
+      const adminMapping = serializeAdminSocketMap();
       const online = Array.from(onlineAdmins);
-      logger.debug({ reason, adminSocketMap: adminMap, onlineAdmins: online }, 'Admin tracking state');
+      logger.debug({ reason, adminSocketMap: adminMapping, onlineAdmins: online }, 'Admin tracking state');
     } catch (error) {
     logger.debug({ error, reason }, 'Kunne ikke logge admin-tilstand');
     }
@@ -193,16 +193,17 @@ export function attachSocketHandlers(socketServer, { socketUsers, onlineAdmins, 
     socket.emit('adminOnlineMessage', { count, message, admins: Array.from(onlineAdmins) });
 
     /** @param {{from?:string, message?:string}} payload */
-    socket.on('sendWelcomeToAdmin', ({ from, message } = {}) => {
+    socket.on('sendWelcomeToAdmin', (payload = {}) => {
+      const { from, message } = payload || {};
       try {
         const normalizedMap = Object.create(null);
         for (const [sessionId, userObject] of Object.entries(socketUsers)) {
           try {
             const object = /** @type {any} */ (userObject);
             const username = object && typeof object === 'object' ? object.username : String(userObject || '');
-            const key = String(username || '').trim().toLowerCase();
-            if (!normalizedMap[key]) normalizedMap[key] = [];
-            normalizedMap[key].push(sessionId);
+            const normalizedKey = String(username || '').trim().toLowerCase();
+            if (!normalizedMap[normalizedKey]) normalizedMap[normalizedKey] = [];
+            normalizedMap[normalizedKey].push(sessionId);
           } catch (error) {
             logger.debug({ error, sessionId, userObj: userObject }, 'Fejl ved normalisering af socketUsers entry');
           }
@@ -215,8 +216,8 @@ export function attachSocketHandlers(socketServer, { socketUsers, onlineAdmins, 
         }
 
         for (const adminName of onlineAdmins) {
-          const key = String(adminName || '').trim().toLowerCase();
-          const sessionIds = normalizedMap[key] || [];
+          const normalizedKey = String(adminName || '').trim().toLowerCase();
+          const sessionIds = normalizedMap[normalizedKey] || [];
           if (!sessionIds.length) {
             logger.debug({ adminName }, 'Ingen sockets fundet for admin ved sendWelcomeToAdmin');
             continue;
@@ -253,15 +254,15 @@ export function attachSocketHandlers(socketServer, { socketUsers, onlineAdmins, 
           const [rows] = await databaseModule.database.query('SELECT id, username, role FROM users WHERE username = ?', [username]);
           const databaseRow = Array.isArray(rows) && rows[0] ? /** @type {any} */ (rows[0]) : null;
           const canonical = databaseRow && databaseRow.username ? databaseRow.username : username;
-          const userId = databaseRow && databaseRow.id ? String(databaseRow.id) : null;
-          socketUsers[socket.id] = { id: userId, username: canonical };
-          const role = databaseRow && databaseRow.role ? databaseRow.role : null;
-          if (role && String(role).toLowerCase() === 'admin' && userId) {
+          const databaseId = databaseRow && databaseRow.id ? String(databaseRow.id) : null;
+          socketUsers[socket.id] = { id: databaseId, username: canonical };
+          const databaseRole = databaseRow && databaseRow.role ? databaseRow.role : null;
+          if (databaseRole && String(databaseRole).toLowerCase() === 'admin' && databaseId) {
             removeSocketIdFromAllNames(socket.id);
-            let entry = adminSocketMap.get(userId);
+            let entry = adminSocketMap.get(databaseId);
             if (!entry) {
               entry = { username: canonical, sockets: new Set() };
-              adminSocketMap.set(userId, entry);
+              adminSocketMap.set(databaseId, entry);
             }
             entry.sockets.add(socket.id);
             logAdminState('registerUser:adminAdded');
@@ -294,16 +295,35 @@ export function attachSocketHandlers(socketServer, { socketUsers, onlineAdmins, 
 
     // --- Administratorsporing ---
     /** @param {{username:string, online:boolean}} data */
-    socket.on('adminOnline', ({ username, online } = {}) => {
+    socket.on('adminOnline', async (data = {}) => {
       try {
+        const { username, online } = data || {};
         const name = String(username || '').trim();
         if (!name) return;
         const rawUserObject = socketUsers[socket.id];
         const userObject = /** @type {any} */ (rawUserObject);
-        const userId = userObject && typeof userObject === 'object' && userObject.id ? String(userObject.id) : null;
+        let userId = userObject && typeof userObject === 'object' && userObject.id ? String(userObject.id) : null;
 
         if (online) {
-          // Only accept online=true from sockets that are tied to a known userId.
+          if (!userId) {
+            try {
+              const databaseModule = await import('../database.js');
+              const [rows] = await databaseModule.database.query('SELECT id, username, role FROM users WHERE username = ?', [name]);
+              const databaseRow = Array.isArray(rows) && rows[0] ? /** @type {any} */ (rows[0]) : null;
+              const databaseRole = databaseRow && databaseRow.role ? String(databaseRow.role).toLowerCase() : null;
+              const databaseId = databaseRow && databaseRow.id ? String(databaseRow.id) : null;
+              if (databaseId && databaseRole === 'admin') {
+                userId = databaseId;
+                socketUsers[socket.id] = { id: userId, username: databaseRow.username || name };
+                logger.debug({ socketId: socket.id, username: name, userId }, 'Resolved adminOnline=true from DB for anonymous socket');
+              } else {
+                logger.debug({ socketId: socket.id, username: name, databaseRow: databaseRow }, 'Ignored adminOnline=true: username not an admin in DB');
+              }
+            } catch (error) {
+              logger.debug({ error, socketId: socket.id, username: name }, 'DB lookup failed while handling adminOnline=true');
+            }
+          }
+
           if (!userId) {
             logger.debug({ socketId: socket.id, username: name }, 'Ignored adminOnline=true from anonymous socket');
           } else {
@@ -317,30 +337,34 @@ export function attachSocketHandlers(socketServer, { socketUsers, onlineAdmins, 
             logAdminState('adminOnline:added');
           }
         } else {
-          // Handle admin going offline. If we have a userId, remove the
-          // specific socket id for that user. If no userId (transient
-          // socket), remove any admin entries matching the username.
+          const socketIdString = String(socket.id);
           if (userId) {
             const entry = adminSocketMap.get(userId);
             if (entry) {
-              entry.sockets.delete(socket.id);
+              const beforeState = serializeAdminSocketMap();
+              entry.sockets.delete(socketIdString);
               if (entry.sockets.size === 0) adminSocketMap.delete(userId);
+              const afterState = serializeAdminSocketMap();
+              logger.debug({ socketId: socketIdString, userId, before: beforeState, after: afterState }, 'adminOnline removal (userId path)');
               logAdminState('adminOnline:removed');
             }
           } else {
             const lowerName = name.toLowerCase();
-            for (const [uid, entry] of Array.from(adminSocketMap.entries())) {
+            const beforeState = serializeAdminSocketMap();
+            for (const [mapUserId, entry] of Array.from(adminSocketMap.entries())) {
               if (entry && String(entry.username || '').toLowerCase() === lowerName) {
-                adminSocketMap.delete(uid);
-                logAdminState('adminOnline:removed');
+                adminSocketMap.delete(mapUserId);
               }
             }
+            const afterState = serializeAdminSocketMap();
+            logger.debug({ socketId: socketIdString, before: beforeState, after: afterState }, 'adminOnline removal (username path)');
+            logAdminState('adminOnline:removed');
           }
         }
 
         broadcastAdminOnlineCount();
       } catch (error) {
-        logger.debug({ error, username, online }, 'adminOnline handler error');
+        logger.debug({ error, data }, 'adminOnline handler error');
       }
     });
   });

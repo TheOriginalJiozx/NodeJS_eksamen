@@ -70,6 +70,24 @@
         });
       }
 
+      try {
+        const emitRegister = () => {
+          try {
+            const nameToRegister = userData && userData.username ? userData.username : (typeof window !== 'undefined' ? localStorage.getItem('username') : null);
+            if (nameToRegister && socket && typeof socket.emit === 'function') {
+              socket.emit('registerUser', nameToRegister);
+              logger.debug({ username: nameToRegister }, 'CLIENT EMIT registerUser (settings)');
+            }
+          } catch (error) {
+            logger.debug({ error }, 'Kunne ikke emit registerUser fra settings');
+          }
+        };
+        if (socket && socket.connected) emitRegister();
+        else if (socket) socket.once('connect', emitRegister);
+      } catch (error) {
+        logger.debug({ error }, 'registerUser scheduling fejlede i settings');
+      }
+
         if (userData.role && String(userData.role).toLowerCase() === 'admin') {
         isAdminOnline = true;
         const emitOnline = () => {
@@ -312,7 +330,7 @@
           {/if}
         </div>
 
-        {#if userData.role === 'Admin'}
+        {#if userData.role && String(userData.role).toLowerCase() === 'admin'}
           <button class="w-full bg-yellow-500 hover:bg-yellow-600 text-white font-semibold py-2 px-4 rounded-xl transition mb-4" on:click={toggleAdminOnline}>
             {isAdminOnline ? 'Vis admin offline status' : 'Vis admin online status'}
           </button>

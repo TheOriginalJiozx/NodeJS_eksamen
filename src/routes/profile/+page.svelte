@@ -84,6 +84,24 @@
         }
       });
 
+      try {
+        const emitRegister = () => {
+          try {
+            const nameToRegister = userData && userData.username ? userData.username : (typeof window !== 'undefined' ? localStorage.getItem('username') : null);
+            if (nameToRegister && socket && typeof socket.emit === 'function') {
+              socket.emit('registerUser', nameToRegister);
+              logger.debug({ username: nameToRegister }, 'CLIENT EMIT registerUser (profile)');
+            }
+          } catch (error) {
+            logger.debug({ error }, 'Kunne ikke emit registerUser fra profile');
+          }
+        };
+        if (socket && socket.connected) emitRegister();
+        else if (socket) socket.once('connect', emitRegister);
+      } catch (error) {
+        logger.debug({ error }, 'registerUser scheduling fejlede i profile');
+      }
+
       if (userData.role && String(userData.role).toLowerCase() === 'admin') {
         isAdminOnline = true;
         logger.debug({ username: userData.username }, 'CLIENT: forbereder emit af adminOnline');
@@ -281,7 +299,7 @@
         <div class="mt-6 space-y-3">
           <a href="/settings" class="w-full block text-center bg-white/30 hover:bg-white/50 text-white font-semibold py-2 px-4 rounded-xl transition">Åbn indstillinger</a>
 
-          {#if userData.role === 'Admin'}
+          {#if userData.role && String(userData.role).toLowerCase() === 'admin'}
             <button
               class="w-full bg-yellow-500 hover:bg-yellow-600 text-white font-semibold py-2 px-4 rounded-xl transition mb-4"
               on:click={toggleAdminOnline}

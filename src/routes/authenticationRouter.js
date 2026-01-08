@@ -142,8 +142,8 @@ router.post('/auth/logout', async (req, res) => {
                     if (count === 1) message = 'En admin er online';
                     else if (count > 1) message = `${count} admins er online`;
                     socketServer.emit('adminOnlineMessage', { count, message, admins });
-                  } catch (err) {
-                    logger.debug({ err }, 'Kunne ikke emit adminOnlineMessage ved logout');
+                  } catch (error) {
+                    logger.debug({ error }, 'Kunne ikke emit adminOnlineMessage ved logout');
                   }
                 }
               } catch (error) {
