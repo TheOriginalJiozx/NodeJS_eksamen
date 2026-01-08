@@ -28,6 +28,7 @@
       toast.error('Adgangskoder matcher ikke');
       return;
     }
+    
     try {
       logger.debug(`Forsøger at registrere bruger: "${username}"`);
 

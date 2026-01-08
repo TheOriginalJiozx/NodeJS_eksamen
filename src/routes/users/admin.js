@@ -19,11 +19,11 @@ router.post('/internal/debug/user-delete-diagnostics', authenticate, async (req,
     const [userRows] = await database.query('SELECT id, username, email FROM users WHERE username = ?', [username]);
     diagnostics.user = userRows && userRows.length > 0 ? userRows[0] : null;
 
-    const [userCount] = await database.query('SELECT COUNT(*) AS cnt FROM users WHERE username = ?', [username]);
-    diagnostics.userCount = userCount && userCount[0] ? userCount[0].cnt : 0;
+    const [userCount] = await database.query('SELECT COUNT(*) AS count FROM users WHERE username = ?', [username]);
+    diagnostics.userCount = userCount && userCount[0] ? userCount[0].count : 0;
 
-    const [votesCount] = await database.query('SELECT COUNT(*) AS cnt FROM user_votes WHERE username = ?', [username]);
-    diagnostics.userVotesCount = votesCount && votesCount[0] ? votesCount[0].cnt : 0;
+    const [votesCount] = await database.query('SELECT COUNT(*) AS count FROM user_votes WHERE username = ?', [username]);
+    diagnostics.userVotesCount = votesCount && votesCount[0] ? votesCount[0].count : 0;
 
     const [foreignKeyUsage] = await database.query(
       `SELECT TABLE_SCHEMA, TABLE_NAME, COLUMN_NAME, CONSTRAINT_NAME, REFERENCED_TABLE_NAME, REFERENCED_COLUMN_NAME

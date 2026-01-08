@@ -89,7 +89,7 @@
     if (!hangmanGame) return '';
     const guessed = Array.isArray(hangmanGame.guessed) ? hangmanGame.guessed : [];
     const answer = typeof hangmanGame.answer === 'string' ? hangmanGame.answer : '';
-    const wrong = guessed.filter((l) => !answer.includes(l));
+    const wrong = guessed.filter((letter) => !answer.includes(letter));
     const stage = Math.min(wrong.length, 6);
     const stages = [
       ' +---+\n |   |\n |\n |\n |\n |\n=====',
@@ -219,7 +219,9 @@
 
     /** @param {any} data */
     const handleStatus = (data) => {
-      try { logger.debug({ data }, 'hangman: status modtaget'); } catch (error) {}
+      try {
+        logger.debug({ data }, 'hangman: status modtaget');
+    } catch (error) {}
       hasActiveHangman = !!data?.active;
       availableRooms = data?.rooms || [];
       allHangmanUsers = data?.allUsers || [];
@@ -372,7 +374,7 @@
         {#if hangmanGame}
           <p>{hangmanGame.maskedWord}</p>
           <p>Gættede bogstaver: {hangmanGame?.guessed?.join(', ') || ''}</p>
-          <p>Forkerte gæt: { (hangmanGame?.guessed || []).filter((l) => !(hangmanGame?.answer || '').includes(l)).join(', ') }</p>
+          <p>Forkerte gæt: { (hangmanGame?.guessed || []).filter((letter) => !(hangmanGame?.answer || '').includes(letter)).join(', ') }</p>
 
           <pre class="mt-4 text-left inline-block leading-5">{hangmanArt()}</pre>
 

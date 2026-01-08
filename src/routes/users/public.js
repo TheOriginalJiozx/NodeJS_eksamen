@@ -1,10 +1,6 @@
 // @ts-nocheck
 import express from 'express';
-import { createUser, getUserByUsername, getUserByEmail } from '../../lib/authentication.js';
-import { hashPassword } from '../../lib/authentication.js';
-import logger from '../../lib/logger.js';
-import { database } from '../../database.js';
-import { downloadTokens } from './shared.js';
+import { getUserByUsername, getUserByEmail } from '../../lib/authentication.js';
 
 const router = express.Router();
 

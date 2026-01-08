@@ -15,7 +15,7 @@ export function createHangman(word) {
     return {
       maskedWord: secret
         .split('')
-        .map(l => (guessed.includes(l) ? l : '_'))
+        .map(letter => (guessed.includes(letter) ? letter : '_'))
         .join(' '),
       guessed: guessed,
       active: active,
@@ -41,8 +41,8 @@ export function createHangman(word) {
    * @returns {{gameOver: boolean}}
    */
   function isGameOver() {
-    const won = !secret.split('').some(l => !guessed.includes(l));
-    const lost = guessed.filter(l => !secret.includes(l)).length >= 6;
+    const won = !secret.split('').some(letter => !guessed.includes(letter));
+    const lost = guessed.filter(letter => !secret.includes(letter)).length >= 6;
     if (won || lost) active = false;
     return { gameOver: won || lost };
   }

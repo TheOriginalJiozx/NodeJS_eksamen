@@ -1,7 +1,6 @@
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
-import fs from 'fs';
-import path from 'path';
+import { createPrivateKey, createPublicKey } from 'crypto';
 import { database } from '../database.js';
 import logger from './logger.js';
 
@@ -11,23 +10,112 @@ import logger from './logger.js';
  *   username: string,
  *   email: string,
  *   password: string
+ *   role?: string
  * }} User
  */
 
-const privateKeyPath = path.resolve(process.cwd(), 'src/lib/private.key');
-const publicKeyPath = path.resolve(process.cwd(), 'src/lib/public.key');
+/**
+ * @param {string|null|undefined} input
+ * @returns {string|null}
+ */
+function normalizeKey(input) {
+    if (!input) return null;
+    if (typeof input !== 'string') return null;
+    if (input.indexOf('\\n') !== -1) return input.replace(/\\n/g, '\n');
+    return input;
+}
 
-/** @type {string} */
-const privateKey = fs.readFileSync(privateKeyPath, 'utf8');
+const privateKeyEnvRaw = process.env.PRIVATE_KEY || null;
+const publicKeyEnvRaw = process.env.PUBLIC_KEY || null;
 
-/** @type {string} */
-let publicKey;
+/**
+ * Strip surrounding quotes from a string value if present.
+ * @param {string|null|undefined} value
+ * @returns {string|null}
+ */
+function stripQuotes(value) {
+    if (!value || typeof value !== 'string') return null;
+    let s = value.trim();
+    // Remove balanced surrounding quotes repeatedly: "..." or '...'
+    while ((s.startsWith('"') && s.endsWith('"')) || (s.startsWith("'") && s.endsWith("'"))) {
+        s = s.slice(1, -1).trim();
+    }
+    // Remove any stray leading or trailing quote characters (in case of double quotes like ""...)
+    s = s.replace(/^"+/, '').replace(/"+$/, '');
+    s = s.replace(/^'+/, '').replace(/'+$/, '');
+    return s;
+}
+
+/**
+ * @param {string|null|undefined} input
+ * @param {'PRIVATE KEY'|'PUBLIC KEY'} wrapType
+ * @returns {string|null}
+ */
+function prepareKey(input, wrapType) {
+    let value = normalizeKey(stripQuotes(input || ''));
+    if (!value) return null;
+    value = String(value).trim();
+    if (value.includes('-----BEGIN') && value.includes('-----END')) return value;
+
+    const base64clean = value.replace(/\s+/g, '');
+    if (/^[A-Za-z0-9+/=]+$/.test(base64clean) && base64clean.length > 100) {
+        const chunks = base64clean.match(/.{1,64}/g) || [base64clean];
+        const pemBody = chunks.join('\n');
+        return `-----BEGIN ${wrapType}-----\n${pemBody}\n-----END ${wrapType}-----`;
+    }
+
+    return value;
+}
+
+/** @type {string|null} */
+let privateKey = prepareKey(privateKeyEnvRaw, 'PRIVATE KEY');
+/** @type {string|null} */
+let publicKey = prepareKey(publicKeyEnvRaw, 'PUBLIC KEY');
+
+if (!privateKey || !publicKey) {
+    logger.error('PRIVATE_KEY og PUBLIC_KEY er ikke korrekte i miljøvariabler (.env)');
+    throw new Error('PRIVATE_KEY og PUBLIC_KEY skal være angivet i miljøvariabler (.env) og være gyldige PEM- eller base64-nøgler');
+}
 
 try {
-    publicKey = fs.readFileSync(publicKeyPath, 'utf8');
-} catch {
-    logger.warn('Public key ikke fundet. RS256 validering vil bruge private key.');
-    publicKey = privateKey;
+    logger.debug({ privateStartsWith: String(privateKey).slice(0, 30), privateLength: privateKey.length }, 'Privat nøgle indlæst (diagnostik)');
+    logger.debug({ publicStartsWith: String(publicKey).slice(0, 30), publicLength: publicKey.length }, 'Public nøgle indlæst (diagnostik)');
+} catch (error) {
+    // ignore logging errors
+}
+
+/**
+ * @param {string|null|undefined} pem
+ * @returns {string|null}
+ */
+function sanitizePem(pem) {
+    if (!pem || typeof pem !== 'string') return null;
+    // Normalize CRLF
+    let s = pem.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
+    const m = s.match(/(-----BEGIN [^-]+-----[\s\S]+?-----END [^-]+-----)/);
+    if (m) return m[1];
+    return s;
+}
+
+privateKey = sanitizePem(privateKey);
+publicKey = sanitizePem(publicKey);
+
+/** @type {import('crypto').KeyObject|null} */
+let privateKeyObject = null;
+/** @type {import('crypto').KeyObject|null} */
+let publicKeyObject = null;
+try {
+    const privKeyString = /** @type {string} */ (privateKey);
+    const pubKeyString = /** @type {string} */ (publicKey);
+
+    privateKeyObject = createPrivateKey({ key: privKeyString, format: 'pem' });
+    publicKeyObject = createPublicKey({ key: pubKeyString, format: 'pem' });
+    logger.debug({ privateType: privateKeyObject.type, privateAsymmetric: privateKeyObject.asymmetricKeyType }, 'Privat nøgle parsed som KeyObject');
+} catch (error) {
+    const errAny = /** @type {any} */ (error);
+    const errMessage = errAny && typeof errAny === 'object' && 'message' in errAny ? String(errAny.message) : String(errAny);
+    logger.error({ error: errAny, message: errMessage }, 'OpenSSL: kunne ikke parse PRIVATE_KEY/PUBLIC_KEY');
+    throw new Error('Privat/public-nøgler kunne ikke parses af OpenSSL. Kontrollér at nøgler er gyldige PEM-strenge (ukrypterede) i .env');
 }
 
 /**
@@ -109,11 +197,14 @@ export async function verifyPassword(password, hashedPassword) {
 }
 
 /**
- * @param {object} payload
+ * @param {Record<string, unknown>} payload - the JWT payload to sign
  * @returns {string}
  */
 export function generateToken(payload) {
-    return jwt.sign(payload, privateKey, { algorithm: 'RS256'});
+    if (!privateKeyObject) {
+        throw new Error('Kan ikke generere token: privat nøgle er ikke tilgængelig eller kunne ikke parses');
+    }
+    return jwt.sign(payload, privateKeyObject, { algorithm: 'RS256'});
 }
 
 /**
@@ -122,21 +213,26 @@ export function generateToken(payload) {
  */
 export function verifyToken(token) {
     if (!token || typeof token !== 'string') {
-        logger.debug('verifyToken called with empty or non-string token');
+        logger.debug('verifyToken kaldt med tomt eller ikke-string token');
         return null;
     }
+    
     const parts = token.split('.');
     if (parts.length !== 3) {
-        logger.debug({ tokenSummary: token?.slice(0, 50) }, 'verifyToken received malformed token (not 3 parts)');
+        logger.debug({ tokenSummary: token?.slice(0, 50) }, 'verifyToken modtog ugyldigt token (ikke 3 dele)');
         return null;
     }
 
     try {
-        const decoded = jwt.verify(token, publicKey, { algorithms: ['RS256'] });
+        if (!publicKeyObject) {
+            logger.error('Kan ikke validere token: offentlig nøgle er ikke tilgængelig');
+            return null;
+        }
+        const decoded = jwt.verify(token, publicKeyObject, { algorithms: ['RS256'] });
         if (typeof decoded === 'string') return null;
         return decoded;
     } catch (error) {
-        logger.debug({ error }, 'Token validering fejlede');
+        logger.debug({ error }, 'Tokenvalidering fejlede');
         return null;
     }
 }

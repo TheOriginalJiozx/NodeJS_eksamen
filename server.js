@@ -1,4 +1,5 @@
 import express from 'express';
+import 'dotenv/config';
 import bodyParser from 'body-parser';
 import { verifyToken, getUserByUsername } from './src/lib/authentication.js';
 import logger from './src/lib/logger.js';
@@ -153,6 +154,16 @@ app.set('onlineAdmins', onlineAdmins);
 app.set('socketUsers', socketUsers);
 
 attachSocketHandlers(socketServer, { socketUsers, onlineAdmins, colorGame, activePollId, getActivePollData, recordVote, getActivePollId: () => activePollId });
+
+app.get('/debug/admin-sockets', (req, res) => {
+  try {
+    const ss = socketServer;
+    const adminState = ss && typeof ss.getAdminState === 'function' ? ss.getAdminState() : {};
+    res.json({ adminState, onlineAdmins: Array.from(onlineAdmins || []) });
+  } catch (error) {
+    res.status(500).json({ error: String(error) });
+  }
+});
 
 // --- Start server ---
 async function startServer() {

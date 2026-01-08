@@ -11,6 +11,12 @@ export function getTokenFromHeader(req) {
   return authenticationHeader.split(' ')[1] || null;
 }
 
+/**
+ * @param {import('express').Request} req
+ * @param {import('express').Response} res
+ * @param {import('express').NextFunction} next
+ * @returns {void}
+ */
 export function authenticate(req, res, next) {
   try {
     const token = getTokenFromHeader(req);
@@ -19,7 +25,7 @@ export function authenticate(req, res, next) {
     if (!decoded) return res.status(403).json({ message: 'Ugyldig token' });
     req.user = decoded;
     next();
-  } catch (error) {
+  } catch {
     return res.status(401).json({ message: 'Ugyldig token' });
   }
 }

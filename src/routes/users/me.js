@@ -19,9 +19,9 @@ router.patch('/password', authenticate, async (req, res) => {
     }
     await changePassword(req.user.username, currentPassword, newPassword);
     res.status(200).json({ message: 'Adgangskode opdateret' });
-  } catch (error) {
-    res.status(400).json({ message: error instanceof Error ? error.message : 'Kunne ikke ændre adgangskode' });
-  }
+    } catch (error) {
+      return res.status(400).json({ message: error instanceof Error ? error.message : 'Kunne ikke ændre adgangskode' });
+    }
 });
 
 router.patch('/username', authenticate, async (req, res) => {
@@ -41,10 +41,10 @@ router.patch('/username', authenticate, async (req, res) => {
         if (socketServer && typeof socketServer.moveAdminSockets === 'function') {
           try {
             socketServer.moveAdminSockets(oldUsername, newUsername);
-          } catch (error) {
-            logger.debug({ error, oldUsername, newUsername }, 'Kunne ikke flytte admin sockets efter brugernavnsskifte');
+          } catch {
+            logger.error({ message: 'Fejl ved download af backup' });
+            res.status(500).json({ message: 'Serverfejl' });
           }
-        } else if (socketServer && typeof socketServer.recomputeAdminOnline === 'function') {
           try {
             socketServer.recomputeAdminOnline();
           } catch (error) {
@@ -58,9 +58,9 @@ router.patch('/username', authenticate, async (req, res) => {
 
     const newToken = generateToken({ username: newUsername });
     res.status(200).json({ message: 'Brugernavn opdateret', newUsername, token: newToken });
-  } catch (error) {
-    res.status(400).json({ message: error instanceof Error ? error.message : 'Kunne ikke ændre brugernavn' });
-  }
+    } catch {
+      res.status(400).json({ message: 'Kunne ikke ændre brugernavn' });
+    }
 });
 
 router.get('/export', async (req, res) => {
@@ -100,10 +100,10 @@ router.get('/export', async (req, res) => {
 router.get('/download', authenticate, async (req, res) => {
   try {
     const file = String(req.query.file || '').trim();
-    if (!file) return res.status(400).json({ message: 'file query is required' });
+    if (!file) return res.status(400).json({ message: 'filforespørgsel er påkrævet' });
 
     if (file.includes('..') || file.includes('/') || file.includes('\\')) {
-      return res.status(400).json({ message: 'Invalid filename' });
+      return res.status(400).json({ message: 'Ugyldigt filnavn' });
     }
 
     const path = await import('path');
@@ -115,8 +115,8 @@ router.get('/download', authenticate, async (req, res) => {
 
     try {
       await fs.promises.access(filePath);
-    } catch (error) {
-      return res.status(404).json({ message: 'File not found' });
+    } catch {
+      return res.status(404).json({ message: 'Filen blev ikke fundet' });
     }
 
     res.setHeader('Content-Disposition', `attachment; filename="${file}"`);
@@ -149,7 +149,7 @@ router.delete('/', async (req, res) => {
     const exportFilename = (req.body && (req.body.exportPath || req.body.exportFilename || req.body.file)) || null;
 
     if (confirm !== true) {
-      logger.info({ username, seenConfirm: confirm }, 'Pre-delete export requested without explicit confirm=true — returning export token');
+      logger.info({ username, seenConfirm: confirm }, 'Forhåndssletning af eksport anmodet uden eksplicit confirm=true — returnerer eksporttoken');
       try {
         const fs = await import('fs');
         const path = await import('path');
@@ -166,7 +166,7 @@ router.delete('/', async (req, res) => {
         await fs.promises.writeFile(filePath, JSON.stringify(exportObject, null, 2), 'utf8');
         try {
           const stat = await fs.promises.stat(filePath);
-          if (!stat || !stat.isFile()) throw new Error('File not found after write');
+          if (!stat || !stat.isFile()) throw new Error('Filen blev ikke fundet efter skrivning');
           logger.info({ username, filePath, size: stat.size }, 'Gemte pre-delete brugerdata export backup');
           const token = generateRandomToken();
           downloadTokens.set(token, { filePath, expires: Date.now() + DOWNLOAD_TTL_MS });
@@ -192,7 +192,7 @@ router.delete('/', async (req, res) => {
       try {
         const stat = await fs.promises.stat(resolved);
         if (!stat || !stat.isFile()) return res.status(400).json({ message: 'eksportfilen findes ikke' });
-      } catch (error) {
+      } catch {
         return res.status(400).json({ message: 'eksportfilen blev ikke fundet' });
       }
     } else {

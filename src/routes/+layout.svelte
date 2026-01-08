@@ -237,15 +237,6 @@
     class="flex items-center justify-center gap-2 max-w-xl mx-auto bg-blue-600 text-white text-center py-1 px-4 font-semibold text-lg z-[9999] fixed top-4 left-1/2 -translate-x-1/2 rounded-xl shadow-lg"
   >
     <span>{adminOnlineMessage}</span>
-    {#if !isAdmin && !welcomeBtnDisabled}
-      <button
-        class="ml-2 bg-white/20 hover:bg-white/40 text-white font-bold px-3 py-1 rounded transition disabled:opacity-50"
-        on:click={sendWelcomeToAdminGlobal}
-        style="pointer-events:auto;"
-      >
-        Send velkomst
-      </button>
-    {/if}
   </div>
 {/if}
 

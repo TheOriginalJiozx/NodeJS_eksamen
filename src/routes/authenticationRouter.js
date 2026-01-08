@@ -126,15 +126,18 @@ router.post('/auth/logout', async (req, res) => {
 
                 if (socketServer) {
                   try {
-                    if (typeof /** @type {any} */ (socketServer).recomputeAdminOnline === 'function') /** @type {any} */ (socketServer).recomputeAdminOnline();
+                    if (typeof /** @type {any} */ (socketServer).removeAdminByUsername === 'function') {
+                      try {
+                        /** @type {any} */ (socketServer).removeAdminByUsername(user.username);
+                      } catch (err) {
+                        logger.debug({ err }, 'removeAdminByUsername fejlede under logout');
+                      }
+                    } else if (typeof /** @type {any} */ (socketServer).recomputeAdminOnline === 'function') /** @type {any} */ (socketServer).recomputeAdminOnline();
                   } catch (error) {
                     logger.debug({ error }, 'Kunne ikke kalde recomputeAdminOnline ved logout');
                   }
                   socketServer.emit('adminOnline', { username: user.username, online: false });
                   try {
-                    // Also send an explicit adminOnlineMessage with the
-                    // recomputed state so clients reliably clear any
-                    // stale local/session storage values.
                     const onlineAdmins = req.app.get('onlineAdmins') || new Set();
                     const admins = Array.isArray(onlineAdmins) ? onlineAdmins : Array.from(onlineAdmins);
                     const count = Array.isArray(admins) ? admins.length : 0;

@@ -132,7 +132,7 @@ export function initializeHangman(hangmanNamespace) {
         sendHangmanStatus(hangmanNamespace);
       }
       try {
-          logger.debug({ name, allHangmanUsers }, 'Hangman: registreret navn og nuværende brugerliste');
+        logger.debug({ name, allHangmanUsers }, 'Hangman: registreret navn og nuværende brugerliste');
       } catch (error) {
         logger.debug({ error }, 'Hangman: fejl ved logging af registreret navn');
       }
@@ -152,6 +152,7 @@ export function initializeHangman(hangmanNamespace) {
       let roomId;
 
       logger.debug({ data }, 'Hangman: handleJoin payload received');
+      
       if (Object.prototype.hasOwnProperty.call(data, 'word')) {
         const rawWord = typeof data.word === 'string' ? data.word.trim() : '';
         if (!rawWord) {

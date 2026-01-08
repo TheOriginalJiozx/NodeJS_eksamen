@@ -25,7 +25,7 @@ router.get('/downloads/:token', async (req, res) => {
 		const filePath = info.filePath;
 		try {
 			await fs.promises.access(filePath);
-		} catch (error) {
+		} catch {
 			return res.status(404).json({ message: 'File not found' });
 		}
 
@@ -40,10 +40,10 @@ router.get('/downloads/:token', async (req, res) => {
 			res.status(500).end();
 		});
 		stream.pipe(res);
-	} catch (error) {
-		logger.error({ error }, 'Fejl ved public download');
-		res.status(500).json({ message: 'Serverfejl' });
-	}
+		} catch {
+			logger.error({ message: 'Fejl ved gemning af backup' });
+			res.status(500).json({ message: 'Kunne ikke gemme backup' });
+		}
 });
 
 router.post('/users/backups', async (req, res) => {
@@ -71,10 +71,10 @@ router.post('/users/backups', async (req, res) => {
 			await fs.promises.writeFile(filePath, JSON.stringify(exportData, null, 2), 'utf8');
 			logger.info({ username, filePath }, 'user export backup gemt');
 			res.status(200).json({ message: 'Backup gemt', path: filePath });
-		} catch (error) {
-			logger.error({ error }, 'Fejl ved gemning af backup');
-			res.status(500).json({ message: 'Kunne ikke gemme backup' });
-		}
+		} catch {
+		logger.error({ message: 'Fejl i /api/users/backups' });
+		res.status(500).json({ message: 'Serverfejl' });
+	}
 	} catch (error) {
 		logger.error({ error }, 'Fejl i /api/users/backups');
 		res.status(500).json({ message: 'Serverfejl' });

@@ -47,6 +47,40 @@
   /** @type {import('socket.io-client').Socket | undefined} */
   let socket;
 
+  /**
+   * @param {string} event
+   * @param {any} payload
+   */
+  function safeEmit(event, payload) {
+    try {
+      if (socket && typeof socket.emit === 'function' && socket.connected) {
+        socket.emit(event, payload);
+        logger.debug({ event, payload }, 'safeEmit: emitted straks');
+        return;
+      }
+      const doIt = () => {
+        try {
+          if (socket && typeof socket.emit === 'function') {
+            socket.emit(event, payload);
+            logger.debug({ event, payload }, 'safeEmit: emitted efter forbindelse');
+          } else {
+            logger.debug({ event }, 'safeEmit: socket er ikke klar til emit');
+          }
+        } catch (err) {
+          logger.debug({ err }, 'safeEmit: emit fejlede');
+        }
+      };
+      if (socket) {
+        socket.once('connect', doIt);
+      } else {
+        socket = io('http://localhost:3000');
+        socket.once('connect', doIt);
+      }
+    } catch (error) {
+      logger.debug({ error }, 'safeEmit uventet fejl');
+    }
+  }
+
   onMount(async () => {
     try {
       const token = getToken();
@@ -74,7 +108,8 @@
         }
 
       socket = io('http://localhost:3000');
-      socket.on('adminOnlineMessage', (data) => {
+      if (socket && typeof socket.on === 'function') {
+        socket.on('adminOnlineMessage', (data) => {
         logger.debug({ data }, 'CLIENT modtog adminOnlineMessage');
         adminOnlineMessage = data.message || '';
         if (Array.isArray(data.admins)) {
@@ -82,14 +117,26 @@
           isAdminOnline = nowOnline;
           localStorage.setItem('isAdminOnline', nowOnline ? 'true' : 'false');
         }
-      });
+        });
+        socket.on('adminOnlineAcknowledgement', (acknowledgement) => {
+          try {
+            logger.debug({ acknowledgement }, 'CLIENT modtog adminOnlineAck');
+            if (acknowledgement && acknowledgement.username && String(acknowledgement.username).toLowerCase() === String(userData.username).toLowerCase()) {
+              isAdminOnline = !!acknowledgement.online;
+              localStorage.setItem('isAdminOnline', isAdminOnline ? 'true' : 'false');
+            }
+          } catch (error) {
+            logger.debug({ error }, 'adminOnlineAck handling fejlede i client profile');
+          }
+        });
+      }
 
       try {
         const emitRegister = () => {
           try {
             const nameToRegister = userData && userData.username ? userData.username : (typeof window !== 'undefined' ? localStorage.getItem('username') : null);
-            if (nameToRegister && socket && typeof socket.emit === 'function') {
-              socket.emit('registerUser', nameToRegister);
+            if (nameToRegister) {
+              safeEmit('registerUser', nameToRegister);
               logger.debug({ username: nameToRegister }, 'CLIENT EMIT registerUser (profile)');
             }
           } catch (error) {
@@ -106,9 +153,8 @@
         isAdminOnline = true;
         logger.debug({ username: userData.username }, 'CLIENT: forbereder emit af adminOnline');
         const emitOnline = () => {
-          if (!socket) return logger.warn('socket er ikke klar til emitOnline');
           logger.debug({ username: userData.username }, 'CLIENT EMIT adminOnline');
-          socket.emit('adminOnline', { username: userData.username, online: true });
+          safeEmit('adminOnline', { username: userData.username, online: true });
           logger.debug('CLIENT EMIT færdig');
         };
         if (socket?.connected) {
@@ -145,7 +191,7 @@
             body: JSON.stringify(exportJson)
           });
         if (!backupResult.ok) {
-          logger.error({ status: backupResult.status }, 'Backup-slutpunkt svarede med fejl');
+          logger.error({ status: backupResult.status }, 'Backup-endpoint svarede med fejl');
           const errorJson = await backupResult.json().catch(() => ({}));
           toast.error(errorJson?.message || 'Kunne ikke gemme backup på serveren');
           return false;
@@ -182,20 +228,20 @@
         }
       }
 
-      // forberedelse
-
       const url = URL.createObjectURL(blob);
       const downloadAnchor = document.createElement('a');
       downloadAnchor.style.display = 'none';
       downloadAnchor.setAttribute('aria-hidden', 'true');
       downloadAnchor.href = url;
       downloadAnchor.download = filename;
+      let downloadStarted = false;
       try {
         document.body.appendChild(downloadAnchor);
         downloadAnchor.click();
+        downloadStarted = true;
       } catch (error) {
         logger.error({ error }, 'Kunne ikke udløse download via anker');
-        toast.error('Kunne ikke starte download');
+        downloadStarted = false;
       } finally {
         try {
           downloadAnchor.remove();
@@ -208,8 +254,14 @@
           logger.error({ error }, 'Kunne ikke revoke objekt-URL efter download');
         }
       }
-      toast.success('Data eksporteret');
-      return serverFilename || true;
+
+      if (downloadStarted) {
+        toast.success('Data eksporteret');
+        return serverFilename || true;
+      }
+
+      toast.error('Kunne ikke starte download');
+      return false;
     } catch (error) {
       logger.error({ error }, 'Fejl ved eksport');
       toast.error('Serverfejl ved eksport');
@@ -256,11 +308,7 @@
 
         storeUser.set(null);
 
-        if (typeof window !== 'undefined') {
-          goto('/login');
-        } else {
-          goto('/login');
-        }
+        goto('/login');
         
         return;
       }
@@ -275,9 +323,44 @@
   function toggleAdminOnline() {
     isAdminOnline = !isAdminOnline;
     localStorage.setItem('isAdminOnline', isAdminOnline ? 'true' : 'false');
-    if (userData.role === 'Admin' && socket) {
-      socket.emit?.('adminOnline', { username: userData.username, online: isAdminOnline });
-    }
+    const usernameToSend = (userData && userData.username) || (typeof window !== 'undefined' ? localStorage.getItem('username') : null);
+
+    const doEmit = () => {
+      try {
+        if (!usernameToSend) return logger.debug('toggleAdminOnline: ingen username tilgængelig');
+        if (!socket || typeof socket.emit !== 'function') return logger.debug('toggleAdminOnline: socket ikke tilgængelig');
+
+        if (isAdminOnline) {
+          try {
+            safeEmit('registerUser', usernameToSend);
+            logger.debug({ username: usernameToSend }, 'CLIENT EMIT registerUser (fra toggle -> ON)');
+          } catch (error) {
+            logger.debug({ error }, 'toggleAdminOnline: registerUser emit fejlede');
+          }
+
+          setTimeout(() => {
+            try {
+              safeEmit('adminOnline', { username: usernameToSend, online: true });
+              logger.debug({ username: usernameToSend, online: true }, 'CLIENT EMIT adminOnline ON from profile toggle');
+            } catch (error) {
+              logger.debug({ error }, 'toggleAdminOnline: adminOnline emit fejlede (ON)');
+            }
+          }, 80);
+        } else {
+          try {
+            safeEmit('adminOnline', { username: usernameToSend, online: false });
+            logger.debug({ username: usernameToSend, online: false }, 'CLIENT EMIT adminOnline OFF from profile toggle');
+          } catch (error) {
+            logger.debug({ error }, 'toggleAdminOnline: adminOnline emit fejlede (OFF)');
+          }
+        }
+      } catch (error) {
+        logger.debug({ error }, 'toggleAdminOnline: uventet fejl i profile');
+      }
+    };
+
+    if (socket && socket.connected) doEmit();
+    else if (socket) socket.once('connect', doEmit);
   }
 </script>
 

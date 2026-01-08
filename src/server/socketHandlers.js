@@ -12,7 +12,7 @@ import logger from '../lib/logger.js';
  *   getActivePollId?: () => number | null
  * }} options
  */
-export function attachSocketHandlers(socketServer, { socketUsers, onlineAdmins, colorGame, activePollId, getActivePollData, recordVote, getActivePollId }) {
+export function attachSocketHandlers(socketServer, { socketUsers, onlineAdmins, colorGame, activePollId, getActivePollData, getActivePollId }) {
   /**
    * @type {Map<string, {username:string, sockets:Set<string>} >}
    */
@@ -48,7 +48,7 @@ export function attachSocketHandlers(socketServer, { socketUsers, onlineAdmins, 
     for (const key of Object.keys(output)) output[key] = Array.from(new Set(output[key]));
     return output;
   }
-
+  
   /**
    * @param {string} reason
    * @returns {void}
@@ -57,9 +57,9 @@ export function attachSocketHandlers(socketServer, { socketUsers, onlineAdmins, 
     try {
       const adminMapping = serializeAdminSocketMap();
       const online = Array.from(onlineAdmins);
-      logger.debug({ reason, adminSocketMap: adminMapping, onlineAdmins: online }, 'Admin tracking state');
+      logger.debug({ reason, adminSocketMap: adminMapping, onlineAdmins: online }, 'Admin sporingsstatus');
     } catch (error) {
-    logger.debug({ error, reason }, 'Kunne ikke logge admin-tilstand');
+      logger.debug({ error, reason }, 'Kunne ikke logge admin-tilstand');
     }
   }
 
@@ -76,8 +76,8 @@ export function attachSocketHandlers(socketServer, { socketUsers, onlineAdmins, 
             if (!existingSockets || !existingSockets.get(socketId)) {
               entry.sockets.delete(socketId);
             }
-          } catch (error) {
-            entry.sockets.delete(socketId);
+          } catch {
+            logger.debug({ message: 'broadcastAdminOnlineCount: fejlede ved pruning af adminSocketMap' });
           }
         }
         if (entry.sockets.size === 0) adminSocketMap.delete(userId);
@@ -181,6 +181,26 @@ export function attachSocketHandlers(socketServer, { socketUsers, onlineAdmins, 
     /** @type {any} */ (socketServer).moveAdminSockets = moveAdminSockets;
     /** @type {any} */ (socketServer).moveSocketsForSessions = moveSocketsForSessions;
     /** @type {any} */ (socketServer).getAdminState = () => serializeAdminSocketMap();
+    /**
+     * @param {string} username
+     * @returns {void}
+     */
+    function removeAdminByUsername(username) {
+      try {
+        const name = String(username || '').trim().toLowerCase();
+        if (!name) return;
+        for (const [userId, entry] of Array.from(adminSocketMap.entries())) {
+          if (entry && String(entry.username || '').toLowerCase() === name) {
+            adminSocketMap.delete(userId);
+          }
+        }
+        logAdminState('removeAdminByUsername');
+        broadcastAdminOnlineCount();
+      } catch (error) {
+        logger.debug({ error, username }, 'removeAdminByUsername: fejlede');
+      }
+    }
+    /** @type {any} */ (socketServer).removeAdminByUsername = removeAdminByUsername;
   } catch (error) {
     logger.debug({ error }, 'Kunne ikke tilknytte recomputeAdminOnline til socketServer');
   }
@@ -191,60 +211,6 @@ export function attachSocketHandlers(socketServer, { socketUsers, onlineAdmins, 
     if (count === 1) message = 'En admin er online';
     else if (count > 1) message = `${count} admins er online`;
     socket.emit('adminOnlineMessage', { count, message, admins: Array.from(onlineAdmins) });
-
-    /** @param {{from?:string, message?:string}} payload */
-    socket.on('sendWelcomeToAdmin', (payload = {}) => {
-      const { from, message } = payload || {};
-      try {
-        const normalizedMap = Object.create(null);
-        for (const [sessionId, userObject] of Object.entries(socketUsers)) {
-          try {
-            const object = /** @type {any} */ (userObject);
-            const username = object && typeof object === 'object' ? object.username : String(userObject || '');
-            const normalizedKey = String(username || '').trim().toLowerCase();
-            if (!normalizedMap[normalizedKey]) normalizedMap[normalizedKey] = [];
-            normalizedMap[normalizedKey].push(sessionId);
-          } catch (error) {
-            logger.debug({ error, sessionId, userObj: userObject }, 'Fejl ved normalisering af socketUsers entry');
-          }
-        }
-
-        try {
-          logger.debug({ normalizedKeys: Object.keys(normalizedMap), socketUsersCount: Object.keys(socketUsers).length, onlineAdmins: Array.from(onlineAdmins) }, 'sendWelcomeToAdmin: tilstandssnapshot');
-        } catch (error) {
-          logger.debug({ error }, 'sendWelcomeToAdmin: kunne ikke oprette tilstandssnapshot');
-        }
-
-        for (const adminName of onlineAdmins) {
-          const normalizedKey = String(adminName || '').trim().toLowerCase();
-          const sessionIds = normalizedMap[normalizedKey] || [];
-          if (!sessionIds.length) {
-            logger.debug({ adminName }, 'Ingen sockets fundet for admin ved sendWelcomeToAdmin');
-            continue;
-          }
-          let delivered = 0;
-          for (const sessionId of sessionIds) {
-            try {
-              const adminSocket = socketServer.sockets.sockets.get(sessionId);
-              logger.debug({ adminName, sessionId, socketExists: !!adminSocket }, 'sendWelcomeToAdmin: forsøg pr. sessionId');
-              if (adminSocket) {
-                adminSocket.emit('adminWelcomeMessage', { from, message });
-                delivered++;
-              } else {
-                logger.debug({ sessionId, adminName }, 'sendWelcomeToAdmin: socket ikke fundet for sessionId');
-              }
-            } catch (error) {
-              logger.debug({ error, sessionId, adminName }, 'Kunne ikke sende adminWelcomeMessage til socket');
-            }
-          }
-          logger.info({ adminName, delivered }, 'Velkomstbesked leveret til admin-sockets');
-        }
-      } catch (error) {
-        logger.error({ error }, 'Fejl i sendWelcomeToAdmin');
-      }
-    });
-
-    
 
     /** @param {string} username */
     socket.on('registerUser', (username) => {
@@ -315,17 +281,17 @@ export function attachSocketHandlers(socketServer, { socketUsers, onlineAdmins, 
               if (databaseId && databaseRole === 'admin') {
                 userId = databaseId;
                 socketUsers[socket.id] = { id: userId, username: databaseRow.username || name };
-                logger.debug({ socketId: socket.id, username: name, userId }, 'Resolved adminOnline=true from DB for anonymous socket');
+                logger.debug({ socketId: socket.id, username: name, userId }, 'Løst adminOnline=true fra databasen for anonym socket');
               } else {
-                logger.debug({ socketId: socket.id, username: name, databaseRow: databaseRow }, 'Ignored adminOnline=true: username not an admin in DB');
+                logger.debug({ socketId: socket.id, username: name, databaseRow: databaseRow }, 'Ignoreret adminOnline=true: brugeren er ikke en administrator i databasen');
               }
             } catch (error) {
-              logger.debug({ error, socketId: socket.id, username: name }, 'DB lookup failed while handling adminOnline=true');
+              logger.debug({ error, socketId: socket.id, username: name }, 'Database lookup mislykkedes under håndtering af adminOnline=true');
             }
           }
 
           if (!userId) {
-            logger.debug({ socketId: socket.id, username: name }, 'Ignored adminOnline=true from anonymous socket');
+            logger.debug({ socketId: socket.id, username: name }, 'Ignoreret adminOnline=true fra anonym socket');
           } else {
             removeSocketIdFromAllNames(socket.id);
             let entry = adminSocketMap.get(userId);
@@ -334,37 +300,47 @@ export function attachSocketHandlers(socketServer, { socketUsers, onlineAdmins, 
               adminSocketMap.set(userId, entry);
             }
             entry.sockets.add(socket.id);
-            logAdminState('adminOnline:added');
+            logAdminState('adminOnline:tilføjet');
           }
         } else {
-          const socketIdString = String(socket.id);
-          if (userId) {
-            const entry = adminSocketMap.get(userId);
-            if (entry) {
-              const beforeState = serializeAdminSocketMap();
-              entry.sockets.delete(socketIdString);
-              if (entry.sockets.size === 0) adminSocketMap.delete(userId);
-              const afterState = serializeAdminSocketMap();
-              logger.debug({ socketId: socketIdString, userId, before: beforeState, after: afterState }, 'adminOnline removal (userId path)');
-              logAdminState('adminOnline:removed');
+          try {
+            let removedAny = false;
+
+            for (const [mapUserId, entry] of Array.from(adminSocketMap.entries())) {
+              if (entry && entry.sockets && entry.sockets.has(socket.id)) {
+                entry.sockets.delete(socket.id);
+                removedAny = true;
+                if (entry.sockets.size === 0) adminSocketMap.delete(mapUserId);
+                logger.debug({ socketId: socket.id, mapUserId }, 'adminOnline=false: fjernet socketId fra entry');
+              }
             }
-          } else {
+
             const lowerName = name.toLowerCase();
-            const beforeState = serializeAdminSocketMap();
             for (const [mapUserId, entry] of Array.from(adminSocketMap.entries())) {
               if (entry && String(entry.username || '').toLowerCase() === lowerName) {
                 adminSocketMap.delete(mapUserId);
+                removedAny = true;
+                logger.debug({ mapUserId, username: entry.username }, 'adminOnline=false: fjernet entry ved username-match (force offline)');
               }
             }
-            const afterState = serializeAdminSocketMap();
-            logger.debug({ socketId: socketIdString, before: beforeState, after: afterState }, 'adminOnline removal (username path)');
-            logAdminState('adminOnline:removed');
+
+            if (removedAny) {
+              logAdminState('adminOnline:fjernet');
+            }
+            try {
+              socket.emit('adminOnlineAck', { success: !!removedAny, username: name, online: false });
+              logger.debug({ socketId: socket.id, username: name, removedAny }, 'Sent adminOnlineAck to requester');
+            } catch (err) {
+              logger.debug({ err, socketId: socket.id, username: name }, 'Failed to send adminOnlineAck to requester');
+            }
+          } catch (error) {
+            logger.debug({ error, socketId: socket.id, userId, username: name }, 'Fejl ved fjernelse af admin socket under adminOnline=false');
           }
         }
 
         broadcastAdminOnlineCount();
       } catch (error) {
-        logger.debug({ error, data }, 'adminOnline handler error');
+        logger.debug({ error, data }, 'adminOnline handler fejl');
       }
     });
   });
