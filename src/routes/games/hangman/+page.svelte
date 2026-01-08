@@ -106,29 +106,13 @@
   /** @returns {void} */
   function startHangman() {
     if (!hangmanSocket) return;
-    if (hangmanGame) {
-      toast.error('Du er allerede med i et spil. Afslut først det aktuelle spil.');
-      return;
-    }
     const word = hostWord.trim();
-    if (!word) {
-      toast.error('Du skal vælge et ord for at starte spillet');
-      return;
-    }
     if (hangmanSocket) hangmanSocket.emit('join', { name: userData.username, word });
   }
 
   /** @returns {void} */
   function joinHangman() {
     if (!hangmanSocket) return;
-    if (!hasActiveHangman) {
-      toast.error('Der er ikke et aktivt spil lige nu. Start et spil først.');
-      return;
-    }
-    if (!selectedRoomId) {
-      toast.error('Du skal vælge et spil');
-      return;
-    }
     if (hangmanSocket) hangmanSocket.emit('join', { name: userData.username, roomId: selectedRoomId });
   }
 
@@ -165,11 +149,11 @@
     userData = await response.json();
 
     if (typeof window !== 'undefined') {
-      const win = /** @type {any} */ (window);
-      if (!win.__globalHangmanSocket) {
-        win.__globalHangmanSocket = io('http://localhost:3000/hangman', { transports: ['websocket'] });
+      const browserWindow = /** @type {any} */ (window);
+      if (!browserWindow.__globalHangmanSocket) {
+        browserWindow.__globalHangmanSocket = io('http://localhost:3000/hangman', { transports: ['websocket'] });
       }
-      hangmanSocket = win.__globalHangmanSocket;
+      hangmanSocket = browserWindow.__globalHangmanSocket;
     } else {
       hangmanSocket = io('http://localhost:3000/hangman', { transports: ['websocket'] });
     }
@@ -179,9 +163,18 @@
     const socketAny = /** @type {any} */ (hangmanSocket);
 
     /** @param {any} game */
-    const handleStart = (game) => { hangmanGame = /** @type {any} */ (game); score = (/** @type {any} */ (game)).score || 0; hasActiveHangman = true; chatMessages = []; };
+    const handleStart = (game) => {
+      hangmanGame = /** @type {any} */ (game);
+      score = (/** @type {any} */ (game)).score || 0;
+      hasActiveHangman = true;
+      chatMessages = [];
+    };
+
     /** @param {any} data */
-    const handleStarter = (data) => { isHangmanStarter = !!(/** @type {any} */ (data))?.isStarter; };
+    const handleStarter = (data) => {
+      isHangmanStarter = !!(/** @type {any} */ (data))?.isStarter;
+    };
+
     /** @param {any} data */
     const handleUsers = (data) => {
       if (data.type === 'add') {
@@ -190,19 +183,40 @@
       }
       if (data.type === 'remove') {
         const toRemove = Array.isArray(data.users) ? data.users : [data.users];
-        hangmanUsers = hangmanUsers.filter((u) => !toRemove.includes(u));
+        hangmanUsers = hangmanUsers.filter((user) => !toRemove.includes(user));
       }
     };
+
     /** @param {any} data */
-    const handleCorrect = (data) => { hangmanGame = /** @type {any} */ (data).game; };
+    const handleCorrect = (data) => {
+      hangmanGame = /** @type {any} */ (data).game;
+    };
+
     /** @param {any} data */
-    const handleWrong = (data) => { hangmanGame = /** @type {any} */ (data).game; };
+    const handleWrong = (data) => {
+      hangmanGame = /** @type {any} */ (data).game;
+    };
+
     /** @param {any} data */
-    const handleDuplicate = (data) => { toast.error(`Bogstavet '${/** @type {any} */ (data).letter}' er allerede gættet`); };
+    const handleDuplicate = (data) => {
+      toast.error(`Bogstavet '${/** @type {any} */ (data).letter}' er allerede gættet`);
+    };
+
     /** @param {any} data */
-    const handleGameOver = (data) => { hangmanGame = null; hangmanWinner = /** @type {any} */ (data)?.winner || null; lastAnswer = /** @type {any} */ (data)?.answer || null; hasActiveHangman = false; chatMessages = []; const message = /** @type {any} */ (data).message || `Spillet er slut! Svaret var: ${/** @type {any} */ (data).answer}`; toast.success(message); };
+    const handleGameOver = (data) => {
+      hangmanGame = null;
+      hangmanWinner = /** @type {any} */ (data)?.winner || null;
+      lastAnswer = /** @type {any} */ (data)?.answer || null;
+      hasActiveHangman = false;
+      chatMessages = [];
+      const message = /** @type {any} */ (data).message || `Spillet er slut! Svaret var: ${/** @type {any} */ (data).answer}`;
+      toast.success(message); };
+
     /** @param {any} data */
-    const handleGameError = (data) => { toast.error((/** @type {any} */ (data)).message || 'Hangman fejl'); };
+    const handleGameError = (data) => {
+      toast.error((/** @type {any} */ (data)).message || 'Hangman fejl');
+    };
+
     /** @param {any} data */
     const handleStatus = (data) => {
       try { logger.debug({ data }, 'hangman: status modtaget'); } catch (error) {}
@@ -211,13 +225,24 @@
       allHangmanUsers = data?.allUsers || [];
       if (availableRooms.length > 0) {
         const firstRoomId = availableRooms[0].id;
-        const selectedStillValid = selectedRoomId && availableRooms.some(r => r.id === selectedRoomId);
+        const selectedStillValid = selectedRoomId && availableRooms.some(room => room.id === selectedRoomId);
         if (!selectedStillValid) selectedRoomId = firstRoomId;
       }
     };
+
     /** @param {any} data */
-    const handleChat = (data) => { chatMessages = [...chatMessages, { name: /** @type {any} */ (data).name, message: /** @type {any} */ (data).message }]; };
-    const handleRoomLeft = () => { hangmanGame = null; hangmanUsers = []; hangmanWinner = null; chatMessages = []; isHangmanStarter = false; };
+    const handleChat = (data) => {
+      chatMessages = [...chatMessages, {
+        name: /** @type {any} */ (data).name, message: /** @type {any} */ (data).message }];
+      };
+
+    const handleRoomLeft = () => {
+      hangmanGame = null;
+      hangmanUsers = [];
+      hangmanWinner = null;
+      chatMessages = [];
+      isHangmanStarter = false;
+    };
 
     socketAny.on('start', handleStart);
     socketAny.on('starter', handleStarter);
@@ -257,13 +282,15 @@
         const sendRequestStatus = () => {
           try {
             if (hangmanSocket && hangmanSocket.connected) hangmanSocket.emit('requestStatus');
-            else if (hangmanSocket) hangmanSocket.once('connect', () => { if (hangmanSocket) hangmanSocket.emit('requestStatus'); });
+            else if (hangmanSocket) hangmanSocket.once('connect', () => {
+              if (hangmanSocket) hangmanSocket.emit('requestStatus');
+            });
           } catch (error) {
             logger.debug({ error: error }, 'hangman: requestStatus fejlede');
           }
         };
 
-        const emitWithAck = () => {
+        const emitWithAcknowledgement = () => {
           try {
             if (hangmanSocket) {
               hangmanSocket.emit('set name', userData.username, function() {
@@ -284,10 +311,13 @@
         };
 
         if (hangmanSocket.connected) {
-          emitWithAck();
+          emitWithAcknowledgement();
         } else {
           hangmanSocket.once('connect', () => {
-            try { emitWithAck(); } catch (error) { logger.debug({ error }, 'hangman: emit af navn mislykkedes ved forbindelse'); }
+            try {
+              emitWithAcknowledgement();
+            } catch (error) {
+              logger.debug({ error }, 'hangman: emit af navn mislykkedes ved forbindelse'); }
           });
         }
       } catch (error) {
@@ -313,7 +343,7 @@
   <div class="flex-grow flex justify-center items-center">
     <div class="bg-white/20 backdrop-blur-lg rounded-3xl shadow-2xl p-12 w-full max-w-md border border-white/30">
       <h1 class="text-4xl font-bold text-white text-center mb-4">Hangman</h1>
-      <p class="text-white text-center mt-2">Hej {userData.username}, gæt bogstaverne!</p>
+      <p class="text-white text-center mt-2">Hej {userData.username}!</p>
       <button
         on:click={changeColor}
         class="mt-4 bg-white/30 hover:bg-white/50 text-white font-semibold py-2 px-4 rounded-xl transition"
@@ -386,7 +416,7 @@
         {#if hangmanWinner}
           <p class="mt-3 font-bold bg-green-500 text-white">🎉 Ordet blev gættet!</p>
         {:else if !hangmanWinner && !hasActiveHangman}
-          <p class="mt-3 font-bold bg-red-500 text-white">{#if lastAnswer} Ordet "{lastAnswer}" blev desværre ikke gættet.{/if}</p>
+          <p class="mt-3 font-bold bg-red-500 text-white">{#if lastAnswer} Ordet blev desværre ikke gættet.{/if}</p>
         {/if}
       </div>
     </div>

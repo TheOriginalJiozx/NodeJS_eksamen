@@ -48,9 +48,9 @@ router.get('/downloads/:token', async (req, res) => {
 
 router.post('/users/backups', async (req, res) => {
 	try {
-		const authHeader = req.headers['authorization'];
-		if (!authHeader) return res.status(401).json({ message: 'Token mangler' });
-		const token = authHeader.split(' ')[1];
+		const authenticationHeader = req.headers['authorization'];
+		if (!authenticationHeader) return res.status(401).json({ message: 'Token mangler' });
+		const token = authenticationHeader.split(' ')[1];
 		const decoded = verifyToken(token);
 		if (!decoded || !decoded.username) {
 			logger.debug({ tokenSummary: token ? token.slice(0,20) : null, decoded }, 'backups: ugyldigt token eller decoding fejlede');

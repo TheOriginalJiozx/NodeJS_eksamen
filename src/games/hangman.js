@@ -1,7 +1,7 @@
 /**
  * @typedef {Object} HangmanSocketExtensions
  * @property {number} score
- * @property {string|null} name
+ * @property {string} username
  * @property {boolean} isStarter
  * @property {string} [roomId]
  */
@@ -36,14 +36,14 @@ import logger from '../lib/logger.js';
  * @property {HangmanSocket[]} sockets
  * @property {string[]} users
  * @property {string} starter
- * @property {Array<{name: string, message: string}>} chat
+ * @property {Array<{username: string, message: string}>} chat
  */
 
 /**
  * @typedef {Object} JoinData
  * @property {string} [word]
  * @property {string} [roomId]
- * @property {string} [name]
+ * @property {string} [username]
  */
 
 /**
@@ -108,22 +108,12 @@ function cleanupRoom(roomId, hangmanNamespace) {
 export function initializeHangman(hangmanNamespace) {
   return {
     /**
-     * @param {string} roomId
-     */
-    cleanupRoom(roomId) {
-      if (!roomId) return;
-      if (hangmanRooms[roomId]) {
-        delete hangmanRooms[roomId];
-        sendHangmanStatus(hangmanNamespace);
-      }
-    },
-    /**
      * @param {HangmanSocket} socket
      * @returns {void}
      */
     handleConnection: (socket) => {
       socket.score = 0;
-      socket.name = null;
+      socket.username = socket.id;
       socket.isStarter = false;
 
       sendHangmanStatus(hangmanNamespace, socket);
@@ -136,7 +126,7 @@ export function initializeHangman(hangmanNamespace) {
      * @returns {void}
      */
     handleSetName: (socket, name, callback) => {
-      socket.name = name;
+      socket.username = name;
       if (!allHangmanUsers.includes(name)) {
         allHangmanUsers.push(name);
         sendHangmanStatus(hangmanNamespace);
@@ -155,18 +145,14 @@ export function initializeHangman(hangmanNamespace) {
      * @returns {void}
      */
     handleJoin: (socket, data = {}) => {
-      if (data.name && !socket.name) {
-        socket.name = data.name;
-      }
-
-      if (!socket.name) {
-        socket.emit('gameError', { message: 'Sæt et navn før du deltager.' });
-        return;
+      if (data.username && !socket.username) {
+        socket.username = data.username;
       }
 
       let roomId;
 
-      if (data.word) {
+      logger.debug({ data }, 'Hangman: handleJoin payload received');
+      if (Object.prototype.hasOwnProperty.call(data, 'word')) {
         const rawWord = typeof data.word === 'string' ? data.word.trim() : '';
         if (!rawWord) {
           socket.emit('gameError', { message: 'Du skal sætte et ord for at starte et nyt spil.' });
@@ -182,7 +168,7 @@ export function initializeHangman(hangmanNamespace) {
           game,
           sockets: [],
           users: [],
-          starter: socket.name,
+          starter: socket.username || socket.id,
           chat: []
         };
         socket.isStarter = true;
@@ -193,7 +179,7 @@ export function initializeHangman(hangmanNamespace) {
           socket.emit('gameError', { message: 'Dette spil er ikke tilgængeligt.' });
           return;
         }
-        socket.isStarter = hangmanRooms[roomId].starter === socket.name;
+        socket.isStarter = hangmanRooms[roomId].starter === socket.username;
       }
 
       const room = hangmanRooms[roomId];
@@ -203,8 +189,9 @@ export function initializeHangman(hangmanNamespace) {
       if (!room.sockets.includes(socket)) {
         room.sockets.push(socket);
       }
-      if (!room.users.includes(socket.name)) {
-        room.users.push(socket.name);
+
+      if (!room.users.includes(socket.username)) {
+        room.users.push(socket.username);
       }
 
       const game = room.game.getGame();
@@ -215,11 +202,12 @@ export function initializeHangman(hangmanNamespace) {
         type: 'add',
         users: room.users
       });
+
       socket.emit('starter', { isStarter: socket.isStarter });
 
       hangmanNamespace.to(roomId).emit('users', {
         type: 'add',
-        users: socket.name
+        users: socket.username
       });
     },
 
@@ -237,10 +225,10 @@ export function initializeHangman(hangmanNamespace) {
      */
     handleChat: (socket, data) => {
       if (!socket.roomId || !hangmanRooms[socket.roomId]) return;
-      if (!socket.name) return;
+      if (!socket.username) return;
       
       const room = hangmanRooms[socket.roomId];
-      const message = { name: socket.name, message: data.message };
+      const message = { username: socket.username, message: data.message };
       room.chat.push(message);
       
       hangmanNamespace.to(socket.roomId).emit('chat', message);
@@ -257,12 +245,7 @@ export function initializeHangman(hangmanNamespace) {
       const room = hangmanRooms[socket.roomId];
       if (!room.game || room.game.active === false) return;
 
-      if (socket.isStarter) {
-        socket.emit('gameError', { message: 'Du kan ikke gætte bogstaver i dit eget spil.' });
-        return;
-      }
-
-      if (!socket.name) return;
+      if (!socket.username) return;
 
       let result = null;
       try {
@@ -275,7 +258,7 @@ export function initializeHangman(hangmanNamespace) {
       if (result.type === 'failure') {
         socket.score--;
         socket.emit('score', socket.score);
-        hangmanNamespace.to(socket.roomId).emit('wrongLetter', { letter: result.letter, game: result.game, name: socket.name });
+        hangmanNamespace.to(socket.roomId).emit('wrongLetter', { letter: result.letter, game: result.game, username: socket.username });
         const gameOverResult = room.game.isGameOver();
         if (gameOverResult.gameOver) {
           hangmanNamespace.to(socket.roomId).emit('gameOver', { type: 'failure', answer: room.game.answer });
@@ -284,10 +267,10 @@ export function initializeHangman(hangmanNamespace) {
       } else {
         socket.score++;
         socket.emit('score', socket.score);
-        hangmanNamespace.to(socket.roomId).emit('correctLetter', { letter: result.letter, game: result.game, name: socket.name });
+        hangmanNamespace.to(socket.roomId).emit('correctLetter', { letter: result.letter, game: result.game, username: socket.username });
         const gameOverResult = room.game.isGameOver();
         if (gameOverResult.gameOver) {
-          hangmanNamespace.to(socket.roomId).emit('gameOver', { type: 'success', answer: room.game.answer, winner: socket.name });
+          hangmanNamespace.to(socket.roomId).emit('gameOver', { type: 'success', answer: room.game.answer, winner: socket.username });
           cleanupRoom(socket.roomId, hangmanNamespace);
         }
       }
@@ -298,8 +281,8 @@ export function initializeHangman(hangmanNamespace) {
      * @returns {void}
      */
     handleDisconnect: (socket) => {
-      if (socket.name) {
-        const userIndex = allHangmanUsers.indexOf(socket.name);
+      if (socket.username) {
+        const userIndex = allHangmanUsers.indexOf(socket.username);
         if (userIndex !== -1) {
           allHangmanUsers.splice(userIndex, 1);
           sendHangmanStatus(hangmanNamespace);
@@ -322,12 +305,12 @@ export function initializeHangman(hangmanNamespace) {
         const socketIndex = room.sockets.indexOf(socket);
         if (socketIndex !== -1) room.sockets.splice(socketIndex, 1);
 
-        if (socket.name) {
-          const nameIndex = room.users.indexOf(socket.name);
+        if (socket.username) {
+          const nameIndex = room.users.indexOf(socket.username);
           if (nameIndex !== -1) room.users.splice(nameIndex, 1);
           hangmanNamespace.to(socket.roomId).emit('users', {
             type: 'remove',
-            users: socket.name
+            users: socket.username
           });
         }
 

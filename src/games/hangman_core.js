@@ -29,7 +29,7 @@ export function createHangman(word) {
    */
   function checkLetter(letter) {
     letter = String(letter || '').toLowerCase();
-    if (guessed.includes(letter)) throw new Error('Bogstaven er allerede gættet');
+    if (guessed.includes(letter)) throw new Error('Bogstavet er allerede gættet');
     guessed.push(letter);
     if (secret.includes(letter)) {
       return { type: 'success', letter, game: getGame() };

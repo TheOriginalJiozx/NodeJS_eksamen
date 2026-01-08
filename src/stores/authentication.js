@@ -10,7 +10,7 @@ if (typeof window !== 'undefined') {
 }
 
 /** @type {import('svelte/store').Writable<{ token: string|null, username: string|null, role: string|null } | null>} */
-export const auth = writable(initial);
+export const authenticate = writable(initial);
 
 /**
  * @param {{ token?: string|null, username?: string|null, role?: string|null }} param0
@@ -19,7 +19,7 @@ export function setAuthenticationState({ token = null, username = null, role = n
   const jwt = token || null;
   const user = username || null;
   const userRole = role || null;
-  auth.set({ token: jwt, username: user, role: userRole });
+  authenticate.set({ token: jwt, username: user, role: userRole });
   if (typeof window !== 'undefined') {
     if (jwt) localStorage.setItem('jwt', jwt);
     else localStorage.removeItem('jwt');
@@ -31,7 +31,7 @@ export function setAuthenticationState({ token = null, username = null, role = n
 }
 
 export function clearAuthenticationState() {
-  auth.set(null);
+  authenticate.set(null);
   if (typeof window !== 'undefined') {
     try {
       localStorage.removeItem('jwt');
@@ -46,8 +46,8 @@ export function clearAuthenticationState() {
 }
 
 export function getToken() {
-  const authState = get(auth);
-  return authState?.token ?? null;
+  const authenticationState = get(authenticate);
+  return authenticationState?.token ?? null;
 }
 
-export default auth;
+export default authenticate;

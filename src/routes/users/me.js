@@ -2,7 +2,7 @@
 import express from 'express';
 import { changePassword, generateToken, verifyToken, getUserByUsername, changeUsername } from '../../lib/authentication.js';
 import logger from '../../lib/logger.js';
-import { db } from '../../database.js';
+import { database } from '../../database.js';
 import authenticate from '../../middleware/authenticate.js';
 import { downloadTokens, DOWNLOAD_TTL_MS, generateRandomToken } from './shared.js';
 
@@ -65,12 +65,12 @@ router.patch('/username', authenticate, async (req, res) => {
 
 router.get('/export', async (req, res) => {
   try {
-    const authHeader = req.headers['authorization'];
-    if (!authHeader) {
+    const authenticationHeader = req.headers['authorization'];
+    if (!authenticationHeader) {
       logger.debug('export: Authorization header mangler');
       return res.status(401).json({ message: 'Token mangler' });
     }
-    const token = authHeader.split(' ')[1];
+    const token = authenticationHeader.split(' ')[1];
     const decoded = verifyToken(token);
     if (!decoded || !decoded.username) {
       logger.debug({ tokenSummary: token ? token.slice(0, 20) : null, decoded }, 'export: token ugyldig eller dekodning fejlede');
@@ -81,7 +81,7 @@ router.get('/export', async (req, res) => {
     const user = await getUserByUsername(username);
     if (!user) return res.status(404).json({ message: 'Bruger findes ikke' });
 
-    const [votes] = await db.query('SELECT * FROM user_votes WHERE username = ?', [username]);
+    const [votes] = await database.query('SELECT * FROM user_votes WHERE username = ?', [username]);
 
     const exportObject = {
       user: { id: user.id, username: user.username, email: user.email, role: user.role },
@@ -135,9 +135,9 @@ router.get('/download', authenticate, async (req, res) => {
 
 router.delete('/', async (req, res) => {
   try {
-    const authHeader = req.headers['authorization'];
-    if (!authHeader) return res.status(401).json({ message: 'Token mangler' });
-    const token = authHeader.split(' ')[1];
+    const authenticationHeader = req.headers['authorization'];
+    if (!authenticationHeader) return res.status(401).json({ message: 'Token mangler' });
+    const token = authenticationHeader.split(' ')[1];
     const decoded = verifyToken(token);
     if (!decoded || !decoded.username) return res.status(403).json({ message: 'Ugyldig token' });
 
@@ -153,7 +153,7 @@ router.delete('/', async (req, res) => {
       try {
         const fs = await import('fs');
         const path = await import('path');
-        const [votes] = await db.query('SELECT * FROM user_votes WHERE username = ?', [username]);
+        const [votes] = await database.query('SELECT * FROM user_votes WHERE username = ?', [username]);
         const exportObject = {
           user: { id: user.id, username: user.username, email: user.email, role: user.role },
           votes: votes || []

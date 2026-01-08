@@ -10,7 +10,7 @@ import { initializePollTables, getActivePoll, getActivePollData, recordVote } fr
 import { initializeHangman } from './src/games/hangman.js';
 import { initializeColorGame } from './src/games/colorgame.js';
 import usersRouter from './src/routes/usersRouter.js';
-import authRouter from './src/routes/authenticationRouter.js';
+import authenticationRouter from './src/routes/authenticationRouter.js';
 import attachSocketHandlers from './src/server/socketHandlers.js';
 
 const app = express();
@@ -43,7 +43,7 @@ app.use(cors({
 }));
 
 app.use('/api', usersRouter);
-app.use('/api', authRouter);
+app.use('/api', authenticationRouter);
 
 /**
  * @typedef {Object} User

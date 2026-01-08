@@ -7,7 +7,7 @@
   import logger from '../lib/logger.js';
   import { user as storeUser } from '../stores/user.js';
   import apiFetch from '../lib/api.js';
-  import auth, { clearAuthenticationState, getToken } from '../stores/authentication.js';
+  import authentication, { clearAuthenticationState, getToken } from '../stores/authentication.js';
 
   let adminListInitialized = false;
 
@@ -33,8 +33,8 @@
   let adminListReady = false;
   /** @type {string[]} */
   let lastAdminList = [];
-  /** @type {import('socket.io-client').Socket | undefined} */
-  let globalSocket;
+  /** @type {any} */
+  let globalSocket = null;
   let isAdmin = false;
   let isGuest = false;
   if (typeof window !== 'undefined') {
@@ -50,10 +50,10 @@
   });
 
   /** @type {(() => void) | null} */
-  let authUnsubscribe = /** @type {any} */ (null);
+  let authenticationUnsubscribe = null;
   onMount(() => {
-    if (auth && typeof auth.subscribe === 'function') {
-      authUnsubscribe = auth.subscribe((value) => {
+    if (authentication && typeof authentication.subscribe === 'function') {
+      authenticationUnsubscribe = authentication.subscribe((value) => {
         const role = value && value.role ? value.role : (typeof window !== 'undefined' ? localStorage.getItem('role') : null);
         isAdmin = role === 'Admin';
         const nowGuest = !role || role === 'Gæst';
@@ -68,7 +68,7 @@
 
   onDestroy(() => {
     try {
-      if (authUnsubscribe) authUnsubscribe();
+      if (authenticationUnsubscribe) authenticationUnsubscribe();
     } catch (error) {
       logger.debug({ error }, 'Fejl ved unsubscribe af auth-store');
     }
@@ -80,8 +80,8 @@
       const storedMessage = sessionStorage.getItem('adminOnlineMessage');
       if (storedMessage) adminOnlineMessage = storedMessage;
     }
-    globalSocket.on('adminOnlineMessage', (data) => {
-        logger.debug({ data }, 'DEBUG adminOnlineMessage data');
+    globalSocket.on('adminOnlineMessage', /** @param {{count:number, message?:string, admins?:string[]}} data */ (data) => {
+      logger.debug({ data }, 'DEBUG adminOnlineMessage data');
         logger.debug({ admins: data.admins }, 'DEBUG admins fra server');
         logger.debug({ lastWelcomedAdminList: sessionStorage.getItem('lastWelcomedAdminList') }, 'DEBUG sessionStorage lastWelcomedAdminList');
         logger.debug({ adminOnlineList: sessionStorage.getItem('adminOnlineList') }, 'DEBUG sessionStorage adminOnlineList');
@@ -105,25 +105,33 @@
           }
         }
         /** @type {string[]} */
-        let lastWelcomedAdminListArr = [];
+        let lastWelcomedAdminListArray = [];
         if (typeof window !== 'undefined') {
           try {
             const stored = localStorage.getItem('lastWelcomedAdminList');
-            if (stored) lastWelcomedAdminListArr = JSON.parse(stored);
+            if (stored) lastWelcomedAdminListArray = JSON.parse(stored);
           } catch (error) {
-            lastWelcomedAdminListArr = [];
+            lastWelcomedAdminListArray = [];
           }
         }
         /** @type {string[]} */
         const currentAdmins = Array.isArray(data.admins) ? data.admins : [];
-        const newAdmins = currentAdmins.filter(admin => !lastWelcomedAdminListArr.includes(admin));
+        const newAdmins = currentAdmins.filter(admin => !lastWelcomedAdminListArray.includes(admin));
         welcomeBtnDisabled = newAdmins.length === 0;
         adminListInitialized = true;
       }
       adminListReady = true;
       lastAdminCount = data.count;
+      try {
+        if (typeof window !== 'undefined') {
+          if (adminOnlineMessage) sessionStorage.setItem('adminOnlineMessage', adminOnlineMessage);
+          else sessionStorage.removeItem('adminOnlineMessage');
+        }
+      } catch (error) {
+        logger.debug({ error }, 'Kunne ikke opdatere sessionStorage for adminOnlineMessage');
+      }
     });
-    globalSocket.on('adminWelcomeMessage', (data) => {
+    globalSocket.on('adminWelcomeMessage', /** @param {{from?:string, message?:string}} data */ (data) => {
       toast(`Velkomst fra ${data.from}: ${data.message}`);
     });
     const username = typeof window !== 'undefined' ? localStorage.getItem('username') : null;
@@ -141,18 +149,24 @@
 
     globalSocket.on('connect', () => {
       emitRegisterIfNeeded();
+      try {
+        if (typeof window !== 'undefined') {
+          window.globalSocket = globalSocket;
+        }
+      } catch (error) {
+        logger.debug({ error }, 'Kunne ikke eksponere globalSocket på window');
+      }
     });
   });
 
   onMount(async () => {
     if (typeof window === 'undefined') return;
     const storedName = localStorage.getItem('username');
-    const token = getToken();
     if (!storedName) return;
     try {
-      const res = await apiFetch('/api/auth/me');
-      if (res.ok) {
-        const data = await res.json();
+      const response = await apiFetch('/api/auth/me');
+      if (response.ok) {
+        const data = await response.json();
         storeUser.set({ username: data.username });
       } else {
         clearAuthenticationState();
@@ -165,7 +179,7 @@
 
   function sendWelcomeToAdminGlobal() {
     if (welcomeBtnDisabled || !globalSocket) return;
-    let senderName = 'en gæst';
+    let senderName = '';
     /** @type {string[]} */
     let currentAdminList = [];
     if (typeof window !== 'undefined') {
@@ -183,7 +197,6 @@
           }
         }
       }
-      const adminListKey = JSON.stringify(currentAdminList || []);
       /** @type {string[]} */
       let previouslyWelcomed = [];
       try {
@@ -206,8 +219,8 @@
 
       try {
         const stored = localStorage.getItem('lastWelcomedAdminList');
-        const prev = stored ? JSON.parse(stored) : [];
-        const union = Array.from(new Set([...(prev || []), ...(lastAdminList || [])]));
+        const previous = stored ? JSON.parse(stored) : [];
+        const union = Array.from(new Set([...(previous || []), ...(lastAdminList || [])]));
         localStorage.setItem('lastWelcomedAdminList', JSON.stringify(union));
       } catch (error) {
             logger.error({ error }, 'Kunne ikke gemme lastWelcomedAdminList i localStorage');

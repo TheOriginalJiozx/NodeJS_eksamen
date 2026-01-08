@@ -42,15 +42,12 @@
    */
   let userData = { username: '', role: '' };
 
-  
-
   let isAdminOnline = false;
   let adminOnlineMessage = '';
   /** @type {import('socket.io-client').Socket | undefined} */
   let socket;
 
   onMount(async () => {
-
     try {
       const token = getToken();
       if (!token) {
@@ -59,16 +56,17 @@
         goto('/login');
         return;
       }
-      const res = await apiFetch('/api/auth/me');
+      const responseApiFetch = await apiFetch('/api/auth/me');
 
-      if (!res.ok) {
+      if (!responseApiFetch.ok) {
         toast.error('Du har ikke adgang. Log venligst ind igen.');
         localStorage.removeItem('jwt');
         localStorage.removeItem('username');
         goto('/login');
         return;
       }
-      const result = await res.json();
+
+      const result = await responseApiFetch.json();
       userData = result;
         if (result.role) {
           userData.role = result.role;
@@ -114,27 +112,27 @@
   async function exportMyData() {
     let serverFilename = null;
     try {
-      const res = await apiFetch('/api/users/me/export');
-      if (!res.ok) {
-        const error = await res.json().catch(() => ({}));
+      const responseApiFetch2 = await apiFetch('/api/users/me/export');
+      if (!responseApiFetch2.ok) {
+        const error = await responseApiFetch2.json().catch(() => ({}));
         toast.error(error?.message || 'Kunne ikke eksportere data');
         return false;
       }
-      const exportJson = await res.json();
+      const exportJson = await responseApiFetch2.json();
       try {
           const token = getToken();
-          const backupRes = await fetch('/api/users/backups', {
+          const backupResult = await fetch('/api/users/backups', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
             body: JSON.stringify(exportJson)
           });
-        if (!backupRes.ok) {
-          logger.error({ status: backupRes.status }, 'Backup-slutpunkt svarede med fejl');
-          const errJson = await backupRes.json().catch(() => ({}));
-          toast.error(errJson?.message || 'Kunne ikke gemme backup på serveren');
+        if (!backupResult.ok) {
+          logger.error({ status: backupResult.status }, 'Backup-slutpunkt svarede med fejl');
+          const errorJson = await backupResult.json().catch(() => ({}));
+          toast.error(errorJson?.message || 'Kunne ikke gemme backup på serveren');
           return false;
         }
-        const backupJson = await backupRes.json().catch(() => ({}));
+        const backupJson = await backupResult.json().catch(() => ({}));
         let serverPath = backupJson && backupJson.path ? backupJson.path : null;
         if (serverPath) {
           const index1 = serverPath.lastIndexOf('/');
@@ -148,7 +146,10 @@
         return false;
       }
 
-      const blob = new Blob([JSON.stringify(exportJson, null, 2)], { type: 'application/json' });
+      const blob = new Blob([JSON.stringify(exportJson, null, 2)], {
+        type: 'application/json'
+      });
+
       const filename = `${userData.username}-export.json`;
       const navigatorAny = /** @type {any} */ (window.navigator);
       if (navigatorAny && typeof navigatorAny.msSaveOrOpenBlob === 'function') {
@@ -162,6 +163,8 @@
           return false;
         }
       }
+
+      // forberedelse
 
       const url = URL.createObjectURL(blob);
       const downloadAnchor = document.createElement('a');
@@ -202,31 +205,45 @@
       const exported = await exportMyData();
       let exportFilenameToSend = null;
       if (exported === false) {
-        toast.error('Eksport mislykkedes. Prøv igen og sørg for eksport gemmes på serveren før sletning.');
+        toast.error('Eksport mislykkedes. Kontoen blev ikke slettet. Prøv igen.');
         return;
       } else if (typeof exported === 'string') {
         exportFilenameToSend = exported;
       }
 
-      const res = await apiFetch('/api/users/me', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ confirm: true, exportFilename: exportFilenameToSend }) });
-      const data = await res.json().catch(() => ({}));
+      const responseApiFetch3 = await apiFetch('/api/users/me', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          confirm: true,
+          exportFilename: exportFilenameToSend
+        })
+      });
 
-      if (res.ok || res.status === 404) {
-        if (res.ok) toast.success('Konto slettet');
+      const data = await responseApiFetch3.json().catch(() => ({}));
+
+      if (responseApiFetch3.ok || responseApiFetch3.status === 404) {
+        if (responseApiFetch3.ok) toast.success('Konto slettet');
         else toast.info('Konto ikke fundet. Du bliver logget ud.');
 
-        try { clearAuthenticationState(); } catch (error) {
+        try {
+          clearAuthenticationState();
+        } catch (error) {
           logger.debug({ error }, 'deleteMyAccount: clearAuthenticationState fejlede under klient-side rydning');
         }
+
         localStorage.removeItem('jwt');
         localStorage.removeItem('username');
         localStorage.removeItem('role');
+
         storeUser.set(null);
+
         if (typeof window !== 'undefined') {
           goto('/login');
         } else {
           goto('/login');
         }
+        
         return;
       }
 

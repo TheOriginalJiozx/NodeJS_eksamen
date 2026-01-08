@@ -1,12 +1,14 @@
 <script>
   import Footer from "../../components/footer.svelte";
   import Navbar from '../../components/navbar.svelte';
+  import { onMount } from 'svelte';
+  import { goto } from '$app/navigation';
+  import { getToken } from '../../stores/authentication.js';
   import { toast } from "svelte-5-french-toast";
   import { writable } from 'svelte/store';
   import logger from '../../lib/logger.js';
-  import { user as storeUser } from '../../stores/user.js';
   import apiFetch from '../../lib/api.js';
-
+  
   let username = '';
   let email = '';
   let password = '';
@@ -30,16 +32,16 @@
       logger.debug(`Forsøger at registrere bruger: "${username}"`);
 
       /** @type {Response} */
-      const res = await apiFetch('/api/users', {
+      const responseApiFetch = await apiFetch('/api/users', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, email, password })
       });
 
       /** @type {{ message?: string }} */
-      const data = await res.json();
+      const data = await responseApiFetch.json();
 
-      if (!res.ok) {
+      if (!responseApiFetch.ok) {
         logger.warn(`Registrering mislykkedes for "${username}": ${data?.message || 'Ukendt fejl'}`);
         toast.error(data?.message || "Registrering mislykkedes!");
       } else {
@@ -92,7 +94,24 @@
       return next;
     });
   }
+
+  onMount(() => {
+    try {
+      if (getToken()) {
+        goto('/profile');
+      }
+    } catch (error) {}
+  });
 </script>
+
+<svelte:head>
+  <script>
+    try {
+      var _jwt = localStorage.getItem('jwt');
+      if (_jwt) window.location.replace('/profile');
+    } catch (error) {}
+  </script>
+</svelte:head>
 
 <Navbar />
 
@@ -113,9 +132,9 @@
               if (!username) return;
               try {
                 try {
-                  const res = await apiFetch(`/api/check-username?username=${encodeURIComponent(username)}`);
-                  if (res.ok) {
-                    const data = await res.json();
+                  const responseApiFetch2 = await apiFetch(`/api/check-username?username=${encodeURIComponent(username)}`);
+                  if (responseApiFetch2.ok) {
+                    const data = await responseApiFetch2.json();
                     if (!data.available) usernameError = 'Brugernavn er allerede taget';
                   }
                 } catch (error) { logger.debug({ error }, 'signup: check-username apiFetch fejlede'); }
@@ -140,9 +159,9 @@
               if (!email) return;
               try {
                 try {
-                  const res = await apiFetch(`/api/check-email?email=${encodeURIComponent(email)}`);
-                  if (res.ok) {
-                    const data = await res.json();
+                  const responseApiFetch3 = await apiFetch(`/api/check-email?email=${encodeURIComponent(email)}`);
+                  if (responseApiFetch3.ok) {
+                    const data = await responseApiFetch3.json();
                     if (!data.available) emailError = 'E-mail er allerede i brug';
                   }
                 } catch (error) { logger.debug({ error }, 'signup: check-email apiFetch fejlede'); }

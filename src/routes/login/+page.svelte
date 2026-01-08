@@ -8,7 +8,7 @@
   import { toast } from "svelte-5-french-toast";
   import { writable } from 'svelte/store';
   import logger from '../../lib/logger.js';
-
+  
   let username = '';
   let password = '';
 
@@ -30,16 +30,16 @@
       logger.debug(`Forsøger login for bruger "${username}"`);
 
       /** @type {Response} */
-      const res = await apiFetch('/api/auth/login', {
+      const responseApiFetch = await apiFetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password })
       });
 
       /** @type {LoginResponse} */
-      const data = await res.json();
+      const data = await responseApiFetch.json();
 
-      if (!res.ok || !data?.token) {
+      if (!responseApiFetch.ok || !data?.token) {
         logger.warn(`Login fejlede for bruger "${username}": ${data?.message || 'Ukendt fejl'}`);
         toast.error(data?.message || 'Log ind fejlede');
         return;
@@ -89,7 +89,6 @@
       );
 
     } catch (error) {
-      /** @param {unknown} err */
       if (error instanceof Error) {
         logger.error({ message: `Serverfejl ved login for bruger "${username}"`, error });
         toast.error("Serverfejl: " + error.message);
@@ -101,9 +100,8 @@
   }
 
   /** @type {import('svelte/store').Writable<string>} */
-  const bgGradient = writable('from-indigo-700 via-purple-700 to-fuchsia-600');
+  const backgroundGradient = writable('from-indigo-700 via-purple-700 to-fuchsia-600');
 
-  /** Skifter sidegradient */
   function changeColor() {
     const gradients = [
       'from-indigo-700 via-purple-700 to-fuchsia-600',
@@ -119,7 +117,7 @@
       'from-lime-400 via-green-500 til-teal-500',
       'from-yellow-400 via-orange-400 til-red-500',
     ];
-    bgGradient.update(current => {
+    backgroundGradient.update(current => {
       let next;
       do {
         next = gradients[Math.floor(Math.random() * gradients.length)];
@@ -130,9 +128,18 @@
   }
 </script>
 
+<svelte:head>
+  <script>
+    try {
+      var _jwt = localStorage.getItem('jwt');
+      if (_jwt) window.location.replace('/profile');
+    } catch (error) {}
+  </script>
+</svelte:head>
+
 <Navbar />
 
-<div class="pt-20 min-h-screen flex flex-col justify-between bg-gradient-to-tr p-4 ${$bgGradient}">
+<div class="pt-20 min-h-screen flex flex-col justify-between bg-gradient-to-tr p-4 ${$backgroundGradient}">
   <div class="flex-grow flex justify-center items-center">
     <div class="bg-white/20 backdrop-blur-lg rounded-3xl shadow-2xl p-12 w-full max-w-md border border-white/30">
       <h1 class="text-4xl font-bold text-white text-center mb-4">Log ind</h1>

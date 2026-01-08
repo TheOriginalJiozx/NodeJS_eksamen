@@ -2,7 +2,7 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import fs from 'fs';
 import path from 'path';
-import { db } from '../database.js';
+import { database } from '../database.js';
 import logger from './logger.js';
 
 /**
@@ -36,7 +36,7 @@ try {
 export async function readUsers() {
 
     /** @type {[User[], import('mysql2/promise').FieldPacket[]]} */
-    const [rows] = await db.query(
+    const [rows] = await database.query(
         'SELECT id, username, email, password, role FROM users'
     );
 
@@ -50,7 +50,7 @@ export async function readUsers() {
 export async function getUserByUsername(username) {
 
     /** @type {[User[], import('mysql2/promise').FieldPacket[]]} */
-    const [rows] = await db.query(
+    const [rows] = await database.query(
         'SELECT id, username, email, password, role FROM users WHERE username = ?',
         [username]
     );
@@ -65,7 +65,7 @@ export async function getUserByUsername(username) {
 export async function getUserByEmail(email) {
 
     /** @type {[User[], import('mysql2/promise').FieldPacket[]]} */
-    const [rows] = await db.query(
+    const [rows] = await database.query(
         'SELECT id, username, email, password, role FROM users WHERE email = ?',
         [email]
     );
@@ -82,7 +82,7 @@ export async function getUserByEmail(email) {
 export async function createUser(username, email, hashedPassword) {
 
     /** @type {[import("mysql2").ResultSetHeader, import("mysql2/promise").FieldPacket[]]} */
-    const [result] = await db.query(
+    const [result] = await database.query(
         'INSERT INTO users (username, email, password, role) VALUES (?, ?, ?, ?)',
         [username, email, hashedPassword, 'User']
     );
@@ -155,7 +155,7 @@ export async function changePassword(username, currentPassword, newPassword) {
     if (!match) throw new Error('Forkert nuværende adgangskode');
 
     const hashedPassword = await hashPassword(newPassword);
-    await db.query('UPDATE users SET password = ? WHERE id = ?', [hashedPassword, user.id]);
+    await database.query('UPDATE users SET password = ? WHERE id = ?', [hashedPassword, user.id]);
     return true;
 }
 
@@ -168,14 +168,14 @@ export async function changeUsername(oldUsername, newUsername) {
     const user = await getUserByUsername(oldUsername);
     if (!user) throw new Error('Bruger findes ikke');
         const [rows] = /** @type {[Array<{username_changed: number}>, any]} */ (
-        await db.query('SELECT username_changed FROM users WHERE id = ?', [user.id])
+        await database.query('SELECT username_changed FROM users WHERE id = ?', [user.id])
     );
     
     if (rows && rows[0]?.username_changed) throw new Error('Du har allerede skiftet brugernavn');
     const existing = await getUserByUsername(newUsername);
     if (existing) throw new Error('Brugernavn er allerede taget');
 
-    await db.query('UPDATE users SET username = ?, username_changed = 1 WHERE id = ?', [newUsername, user.id]);
-    await db.query('UPDATE user_votes SET username = ? WHERE username = ?', [newUsername, oldUsername]);
+    await database.query('UPDATE users SET username = ?, username_changed = 1 WHERE id = ?', [newUsername, user.id]);
+    await database.query('UPDATE user_votes SET username = ? WHERE username = ?', [newUsername, oldUsername]);
     return true;
 }

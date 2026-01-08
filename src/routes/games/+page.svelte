@@ -77,11 +77,11 @@
     userData = await response.json();
 
     if (typeof window !== 'undefined') {
-      const win = /** @type {any} */ (window);
-      if (!win.__globalSocket) {
-        win.__globalSocket = io('http://localhost:3000', { transports: ['websocket'] });
+      const browserWindow = /** @type {any} */ (window);
+      if (!browserWindow.__globalSocket) {
+        browserWindow.__globalSocket = io('http://localhost:3000', { transports: ['websocket'] });
       }
-      socket = win.__globalSocket;
+      socket = browserWindow.__globalSocket;
       if (socket) socket.emit('registerUser', userData.username);
     } else {
       socket = io('http://localhost:3000', { transports: ['websocket'] });

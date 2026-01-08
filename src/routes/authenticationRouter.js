@@ -2,7 +2,7 @@
 import express from 'express';
 import { hashPassword, createUser, getUserByUsername, verifyPassword, generateToken, verifyToken } from '../lib/authentication.js';
 import logger from '../lib/logger.js';
-import { db } from '../database.js';
+import { database } from '../database.js';
 import authenticate from '../middleware/authenticate.js';
 
 const router = express.Router();
@@ -29,24 +29,24 @@ router.post('/auth/login', async (req, res) => {
   try {
     const { username, password } = req.body;
     const user = await getUserByUsername(username);
-    if (!user) return res.status(404).json({ message: "Bruger findes ikke" });
+    if (!user) return res.status(404).json({ message: 'Bruger findes ikke' });
 
     const match = await verifyPassword(password, user.password);
-    if (!match) return res.status(401).json({ message: "Forkert adgangskode" });
+    if (!match) return res.status(401).json({ message: 'Forkert adgangskode' });
 
     try {
-      const [databaseRow] = await db.query('SELECT DATABASE() AS current_database');
+      const [databaseRow] = await database.query('SELECT DATABASE() AS current_database');
       const currentDatabase = Array.isArray(databaseRow) && databaseRow[0] ? databaseRow[0].current_database : null;
       logger.info({ currentDatabase, userId: user.id, username: user.username }, 'Databasekontekst før opdatering af last_login');
 
       try {
-        await db.query('UPDATE users SET last_login = NOW(6), isOnline = 1 WHERE id = ?', [user.id]);
+        await database.query('UPDATE users SET last_login = NOW(6), isOnline = 1 WHERE id = ?', [user.id]);
       } catch (innerError) {
         const message = innerError && innerError.message ? String(innerError.message) : '';
         const code = innerError && innerError.code ? String(innerError.code) : '';
         logger.warn({ errMessage: message, errCode: code, userId: user.id }, 'Kunne ikke opdatere isOnline — forsøger reserveopdatering');
         if (message.includes('Ukendt kolonne') || code === 'ER_BAD_FIELD_ERROR') {
-          await db.query('UPDATE users SET last_login = NOW(6) WHERE id = ?', [user.id]);
+          await database.query('UPDATE users SET last_login = NOW(6) WHERE id = ?', [user.id]);
         } else {
           throw innerError;
         }
@@ -81,7 +81,7 @@ router.get('/auth/me', authenticate, async (req, res) => {
     const user = await getUserByUsername(req.user.username);
     if (!user) return res.status(404).json({ message: 'Bruger findes ikke' });
 
-    const [rows] = await db.query('SELECT username_changed FROM users WHERE id = ?', [user.id]);
+    const [rows] = await database.query('SELECT username_changed FROM users WHERE id = ?', [user.id]);
     const username_changed = rows && rows[0] ? !!rows[0].username_changed : false;
 
     res.status(200).json({ id: user.id, username: user.username, email: user.email, username_changed, role: user.role });
@@ -93,8 +93,8 @@ router.get('/auth/me', authenticate, async (req, res) => {
 
 router.post('/auth/logout', async (req, res) => {
   try {
-    const authHeader = req.headers['authorization'] || '';
-    const token = authHeader.split(' ')[1];
+    const authenticationHeader = req.headers['authorization'] || '';
+    const token = authenticationHeader.split(' ')[1];
     if (token) {
       const decoded = verifyToken(token);
       if (decoded && decoded.username) {
@@ -102,7 +102,7 @@ router.post('/auth/logout', async (req, res) => {
           const user = await getUserByUsername(decoded.username);
           if (user) {
             try {
-              await db.query('UPDATE users SET isOnline = 0 WHERE username = ?', [user.username]);
+              await database.query('UPDATE users SET isOnline = 0 WHERE username = ?', [user.username]);
             } catch (databaseError) {
               logger.error({ error: databaseError, username: user.username }, 'Fejl ved indstilling af isOnline=0 ved udlogning');
             }
@@ -131,6 +131,20 @@ router.post('/auth/logout', async (req, res) => {
                     logger.debug({ error }, 'Kunne ikke kalde recomputeAdminOnline ved logout');
                   }
                   socketServer.emit('adminOnline', { username: user.username, online: false });
+                  try {
+                    // Also send an explicit adminOnlineMessage with the
+                    // recomputed state so clients reliably clear any
+                    // stale local/session storage values.
+                    const onlineAdmins = req.app.get('onlineAdmins') || new Set();
+                    const admins = Array.isArray(onlineAdmins) ? onlineAdmins : Array.from(onlineAdmins);
+                    const count = Array.isArray(admins) ? admins.length : 0;
+                    let message = '';
+                    if (count === 1) message = 'En admin er online';
+                    else if (count > 1) message = `${count} admins er online`;
+                    socketServer.emit('adminOnlineMessage', { count, message, admins });
+                  } catch (err) {
+                    logger.debug({ err }, 'Kunne ikke emit adminOnlineMessage ved logout');
+                  }
                 }
               } catch (error) {
                 logger.debug({ error }, 'Kunne ikke opdatere onlineadministratorer under logoutprocessen');

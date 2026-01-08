@@ -1,25 +1,34 @@
 <script>
   import { user } from '../stores/user.js';
   import apiFetch from '../lib/api.js';
-  import { clearAuthenticationState, auth } from '../stores/authentication.js';
+  import { clearAuthenticationState, authenticate } from '../stores/authentication.js';
   import { goto } from '$app/navigation';
-  import { toast } from "svelte-5-french-toast";
+  import { toast } from 'svelte-5-french-toast';
   import logger from '../lib/logger.js';
 
   export let links = [{ href: '/', label: 'Hjem' }];
 
   $: currentUser = $user;
 
+  /**
+   * Logout the current user and notify server if admin.
+   * @returns {Promise<void>}
+   */
   async function logout() {
     const role = typeof window !== 'undefined' ? localStorage.getItem('role') : null;
     const username = typeof window !== 'undefined' ? localStorage.getItem('username') : null;
 
     if (role === 'Admin' && username) {
       try {
-        const io = (await import('socket.io-client')).default;
-        const sock = io('http://localhost:3000');
-        sock.emit('adminOnline', { username, online: false });
-        sock.disconnect();
+        const globalSocket = typeof window !== 'undefined' ? window.globalSocket : null;
+        if (globalSocket && typeof globalSocket.emit === 'function') {
+          globalSocket.emit('adminOnline', { username, online: false });
+        } else {
+          const socketServer = (await import('socket.io-client')).default;
+          const socket = socketServer('http://localhost:3000');
+          socket.emit('adminOnline', { username, online: false });
+          socket.disconnect();
+        }
       } catch (error) {
         logger.warn({ error: String(error) }, 'Socketfejl under afsendelse af adminOnline=false under logout');
       }

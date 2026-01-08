@@ -6,9 +6,9 @@ import { verifyToken } from '../lib/authentication.js';
  * @returns {string|null}
  */
 export function getTokenFromHeader(req) {
-  const authHeader = req.headers['authorization'] || '';
-  if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
-  return authHeader.split(' ')[1] || null;
+  const authenticationHeader = req.headers['authorization'] || '';
+  if (!authenticationHeader || !authenticationHeader.startsWith('Bearer ')) return null;
+  return authenticationHeader.split(' ')[1] || null;
 }
 
 export function authenticate(req, res, next) {

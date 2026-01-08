@@ -29,25 +29,6 @@
   /** @type {import('socket.io-client').Socket | null} */
   let socket = null;
 
-  onDestroy(() => {
-    try {
-      if (userData && userData.role && String(userData.role).toLowerCase() === 'admin' && socket && typeof socket.emit === 'function') {
-        try {
-          socket.emit('adminOnline', { username: userData.username, online: false });
-        } catch (error) {
-          logger.debug({ error }, 'Kunne ikke emit adminOffline på onDestroy');
-        }
-      }
-    } catch (error) {
-      logger.debug({ error }, 'onDestroy: fejl ved admin offline emit check');
-    }
-    try {
-      if (socket && typeof socket.disconnect === 'function') socket.disconnect();
-    } catch (error) {
-      logger.debug({ error }, 'onDestroy: fejl ved socket.disconnect');
-    }
-  });
-
   onMount(async () => {
     try {
       const token = getToken();
@@ -57,16 +38,16 @@
         goto('/login');
         return;
       }
-      const res = await apiFetch('/api/auth/me');
+      const responseApiFetch = await apiFetch('/api/auth/me');
 
-      if (!res.ok) {
+      if (!responseApiFetch.ok) {
         toast.error('Du har ikke adgang. Log venligst ind igen.');
         localStorage.removeItem('jwt');
         localStorage.removeItem('username');
         goto('/login');
         return;
       }
-      const result = await res.json();
+      const result = await responseApiFetch.json();
       userData = result;
       if (typeof result.username_changed !== 'undefined') {
         usernameChanged = !!result.username_changed;
@@ -127,15 +108,15 @@
 
     changing = true;
     try {
-      const res = await apiFetch('/api/users/me/password', {
+      const responseApiFetch2 = await apiFetch('/api/users/me/password', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ currentPassword, newPassword })
       });
 
-      const data = await res.json().catch(() => ({}));
+      const data = await responseApiFetch2.json().catch(() => ({}));
 
-      if (!res.ok) {
+      if (!responseApiFetch2.ok) {
         toast.error(data?.message || 'Kunne ikke ændre adgangskode');
         return;
       }
@@ -164,13 +145,13 @@
     }
     changingUsername = true;
     try {
-      const res = await apiFetch('/api/users/me/username', {
+      const responseApiFetch3 = await apiFetch('/api/users/me/username', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ newUsername })
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
+      const data = await responseApiFetch3.json().catch(() => ({}));
+      if (!responseApiFetch3.ok) {
         toast.error(data?.message || 'Kunne ikke ændre brugernavn');
         return;
       }
@@ -231,7 +212,7 @@
           try {
             const array = JSON.parse(storedWelcomed);
             if (Array.isArray(array)) {
-              const filtered = array.filter(u => u !== oldUsername);
+              const filtered = array.filter(username => username !== oldUsername);
               if (!filtered.includes(newUsername)) filtered.push(newUsername);
               localStorage.setItem('lastWelcomedAdminList', JSON.stringify(filtered));
               logger.debug({ oldUsername, newUsername, filtered }, 'Opdateret lastWelcomedAdminList efter brugernavnsskifte i settings');
@@ -245,9 +226,7 @@
           try {
             const array2 = JSON.parse(storedAdminList);
             if (Array.isArray(array2)) {
-              // remove oldUsername entries
-              const filtered2 = array2.filter(u => u !== oldUsername);
-              // ensure newUsername is present
+              const filtered2 = array2.filter(username => username !== oldUsername);
               if (!filtered2.includes(newUsername)) filtered2.push(newUsername);
               localStorage.setItem('adminOnlineList', JSON.stringify(filtered2));
               logger.debug({ oldUsername, newUsername, filtered2 }, 'Opdateret adminOnlineList efter brugernavnsskifte i settings');
