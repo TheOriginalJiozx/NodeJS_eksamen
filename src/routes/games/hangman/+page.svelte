@@ -78,7 +78,7 @@
   /** @type {string} */
   let chatInput = '';
   /** @type {number} */
-  let score = 0;
+  let playerScore = 0;
   /** @type {string} */
   let letterGuess = '';
   /** @type {(() => void) | null} */
@@ -165,7 +165,7 @@
     /** @param {any} game */
     const handleStart = (game) => {
       hangmanGame = /** @type {any} */ (game);
-      score = (/** @type {any} */ (game)).score || 0;
+      playerScore = (/** @type {any} */ (game)).score || 0;
       hasActiveHangman = true;
       chatMessages = [];
     };
@@ -190,12 +190,13 @@
     /** @param {any} data */
     const handleCorrect = (data) => {
       hangmanGame = /** @type {any} */ (data).game;
-    };
+        // Score updates are handled by server 'score' events. Do not modify local score here.
+      };
 
     /** @param {any} data */
     const handleWrong = (data) => {
       hangmanGame = /** @type {any} */ (data).game;
-    };
+      };
 
     /** @param {any} data */
     const handleDuplicate = (data) => {
@@ -246,6 +247,14 @@
       isHangmanStarter = false;
     };
 
+    /** @param {number} score */
+    const handleScore = (score) => {
+      try {
+        logger.debug({ score }, 'hangman: score modtaget');
+      } catch (error) {}
+      playerScore = typeof score === 'number' ? score : 0;
+    };
+
     socketAny.on('start', handleStart);
     socketAny.on('starter', handleStarter);
     socketAny.on('users', handleUsers);
@@ -257,6 +266,7 @@
     socketAny.on('status', handleStatus);
     socketAny.on('chat', handleChat);
     socketAny.on('roomLeft', handleRoomLeft);
+    socketAny.on('score', handleScore);
 
     cleanupHangmanHandlers = () => {
       try {
@@ -272,6 +282,7 @@
           hangmanSocket.off('status', handleStatus);
           hangmanSocket.off('chat', handleChat);
           hangmanSocket.off('roomLeft', handleRoomLeft);
+          hangmanSocket.off('score', handleScore);
         }
       } catch (error) {
         logger.debug({ errorMessage: error }, 'hangman: fejl under oprydning i onDestroy');
@@ -334,7 +345,7 @@
     try {
       if (cleanupHangmanHandlers) cleanupHangmanHandlers();
     } catch (error) {
-      logger.debug({ error }, 'hangman: error during onDestroy');
+      logger.debug({ error }, 'hangman: fejl opstået under onDestroy');
     }
   });
 </script>
@@ -346,6 +357,8 @@
     <div class="bg-white/20 backdrop-blur-lg rounded-3xl shadow-2xl p-12 w-full max-w-md border border-white/30">
       <h1 class="text-4xl font-bold text-white text-center mb-4">Hangman</h1>
       <p class="text-white text-center mt-2">Hej {userData.username}!</p>
+      <p class="text-white text-center mt-2 font-semibold">Score: {playerScore}</p>
+      <p class="text-white text-center mt-2 font-semibold italic">Denne score nulstilles hvis du forlader siden</p>
       <button
         on:click={changeColor}
         class="mt-4 bg-white/30 hover:bg-white/50 text-white font-semibold py-2 px-4 rounded-xl transition"
