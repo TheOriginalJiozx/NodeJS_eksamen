@@ -8,6 +8,7 @@
   import { io } from 'socket.io-client';
   import { onDestroy } from 'svelte';
   import apiFetch from '../../lib/api.js';
+  import { getPasswordError } from '../../lib/validation.js';
   import { getToken, clearAuthenticationState, setAuthenticationState } from '../../stores/authentication.js';
 
   /** @type {{ username: string, role: string | null }} */
@@ -30,7 +31,6 @@
   let socket = null;
 
   /**
-   * Safely emit an event via socket: will wait for connect or create socket.
    * @param {string} event
    * @param {any} payload
    */
@@ -45,12 +45,12 @@
         try {
           if (socket && typeof socket.emit === 'function') {
             socket.emit(event, payload);
-            logger.debug({ event, payload }, 'safeEmit: emitted after connect');
+            logger.debug({ event, payload }, 'safeEmit: emitted efter forbindelse');
           } else {
-            logger.debug({ event }, 'safeEmit: socket not available to emit');
+            logger.debug({ event }, 'safeEmit: socket er ikke tilgængelig til emit');
           }
-        } catch (err) {
-          logger.debug({ err }, 'safeEmit: emit failed');
+        } catch (error) {
+          logger.debug({ error }, 'safeEmit: emit fejlede');
         }
       };
       if (socket) {
@@ -60,7 +60,7 @@
         socket.once('connect', doIt);
       }
     } catch (error) {
-      logger.debug({ error }, 'safeEmit unexpected error');
+      logger.debug({ error }, 'safeEmit uventet fejl');
     }
   }
 
@@ -164,8 +164,9 @@
       toast.error('Alle felter skal udfyldes');
       return;
     }
-    if (newPassword.length < 6) {
-      toast.error('Ny adgangskode skal være mindst 6 tegn');
+    const passwordError = getPasswordError(newPassword);
+    if (passwordError) {
+      toast.error(passwordError);
       return;
     }
     if (newPassword !== confirmPassword) {

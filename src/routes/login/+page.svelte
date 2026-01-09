@@ -8,6 +8,7 @@
   import { toast } from "svelte-5-french-toast";
   import { writable } from 'svelte/store';
   import logger from '../../lib/logger.js';
+    import { error } from "@sveltejs/kit";
   
   let username = '';
   let password = '';
@@ -133,7 +134,9 @@
     try {
       var _jwt = localStorage.getItem('jwt');
       if (_jwt) window.location.replace('/profile');
-    } catch (error) {}
+    } catch (error) {
+      logger.error({ message: 'Fejl ved tjek af JWT i localStorage', error });
+    }
   </script>
 </svelte:head>
 

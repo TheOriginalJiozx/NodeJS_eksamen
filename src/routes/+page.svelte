@@ -69,7 +69,7 @@
       logger.debug({ poll }, 'Poll opdateret');
     });
 
-    /** @param {unknown} err */
+    /** @param {unknown} error */
     socket.on('connect_error', (error) => {
       if (error instanceof Error) {
         logger.error({ error }, 'Socket fejl');

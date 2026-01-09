@@ -10,7 +10,7 @@ import logger from './logger.js';
  *   username: string,
  *   email: string,
  *   password: string
- *   role?: string
+ *   role: string
  * }} User
  */
 
@@ -29,21 +29,18 @@ const privateKeyEnvRaw = process.env.PRIVATE_KEY || null;
 const publicKeyEnvRaw = process.env.PUBLIC_KEY || null;
 
 /**
- * Strip surrounding quotes from a string value if present.
  * @param {string|null|undefined} value
  * @returns {string|null}
  */
 function stripQuotes(value) {
     if (!value || typeof value !== 'string') return null;
-    let s = value.trim();
-    // Remove balanced surrounding quotes repeatedly: "..." or '...'
-    while ((s.startsWith('"') && s.endsWith('"')) || (s.startsWith("'") && s.endsWith("'"))) {
-        s = s.slice(1, -1).trim();
+    let stripped = value.trim();
+    while ((stripped.startsWith('"') && stripped.endsWith('"')) || (stripped.startsWith('\'') && stripped.endsWith('\''))) {
+        stripped = stripped.slice(1, -1).trim();
     }
-    // Remove any stray leading or trailing quote characters (in case of double quotes like ""...)
-    s = s.replace(/^"+/, '').replace(/"+$/, '');
-    s = s.replace(/^'+/, '').replace(/'+$/, '');
-    return s;
+    stripped = stripped.replace(/^"+/, '').replace(/"+$/, '');
+    stripped = stripped.replace(/^'+/, '').replace(/'+$/, '');
+    return stripped;
 }
 
 /**
@@ -80,25 +77,24 @@ if (!privateKey || !publicKey) {
 try {
     logger.debug({ privateStartsWith: String(privateKey).slice(0, 30), privateLength: privateKey.length }, 'Privat nøgle indlæst (diagnostik)');
     logger.debug({ publicStartsWith: String(publicKey).slice(0, 30), publicLength: publicKey.length }, 'Public nøgle indlæst (diagnostik)');
-} catch (error) {
-    // ignore logging errors
+} catch {
+    logger.debug('authentication: fejl ved logging af nøgler (diagnostik)');
 }
 
 /**
- * @param {string|null|undefined} pem
+ * @param {string|null|undefined} PrivacyEnhancedMail
  * @returns {string|null}
  */
-function sanitizePem(pem) {
-    if (!pem || typeof pem !== 'string') return null;
-    // Normalize CRLF
-    let s = pem.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
-    const m = s.match(/(-----BEGIN [^-]+-----[\s\S]+?-----END [^-]+-----)/);
-    if (m) return m[1];
-    return s;
+function sanitizePrivacyEnhancedMail(PrivacyEnhancedMail) {
+    if (!PrivacyEnhancedMail || typeof PrivacyEnhancedMail !== 'string') return null;
+    let sanitized = PrivacyEnhancedMail.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
+    const match = sanitized.match(/(-----BEGIN [^-]+-----[\s\S]+?-----END [^-]+-----)/);
+    if (match) return match[1];
+    return sanitized;
 }
 
-privateKey = sanitizePem(privateKey);
-publicKey = sanitizePem(publicKey);
+privateKey = sanitizePrivacyEnhancedMail(privateKey);
+publicKey = sanitizePrivacyEnhancedMail(publicKey);
 
 /** @type {import('crypto').KeyObject|null} */
 let privateKeyObject = null;
@@ -112,9 +108,9 @@ try {
     publicKeyObject = createPublicKey({ key: pubKeyString, format: 'pem' });
     logger.debug({ privateType: privateKeyObject.type, privateAsymmetric: privateKeyObject.asymmetricKeyType }, 'Privat nøgle parsed som KeyObject');
 } catch (error) {
-    const errAny = /** @type {any} */ (error);
-    const errMessage = errAny && typeof errAny === 'object' && 'message' in errAny ? String(errAny.message) : String(errAny);
-    logger.error({ error: errAny, message: errMessage }, 'OpenSSL: kunne ikke parse PRIVATE_KEY/PUBLIC_KEY');
+    const errorAny = /** @type {any} */ (error);
+    const errorMessage = errorAny && typeof errorAny === 'object' && 'message' in errorAny ? String(errorAny.message) : String(errorAny);
+    logger.error({ error: errorAny, message: errorMessage }, 'OpenSSL: kunne ikke parse PRIVATE_KEY/PUBLIC_KEY');
     throw new Error('Privat/public-nøgler kunne ikke parses af OpenSSL. Kontrollér at nøgler er gyldige PEM-strenge (ukrypterede) i .env');
 }
 
@@ -197,7 +193,7 @@ export async function verifyPassword(password, hashedPassword) {
 }
 
 /**
- * @param {Record<string, unknown>} payload - the JWT payload to sign
+ * @param {Record<string, unknown>} payload
  * @returns {string}
  */
 export function generateToken(payload) {

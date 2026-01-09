@@ -330,8 +330,8 @@ export function attachSocketHandlers(socketServer, { socketUsers, onlineAdmins, 
             try {
               socket.emit('adminOnlineAck', { success: !!removedAny, username: name, online: false });
               logger.debug({ socketId: socket.id, username: name, removedAny }, 'Sent adminOnlineAck to requester');
-            } catch (err) {
-              logger.debug({ err, socketId: socket.id, username: name }, 'Failed to send adminOnlineAck to requester');
+            } catch (error) {
+              logger.debug({ error, socketId: socket.id, username: name }, 'Failed to send adminOnlineAck to requester');
             }
           } catch (error) {
             logger.debug({ error, socketId: socket.id, userId, username: name }, 'Fejl ved fjernelse af admin socket under adminOnline=false');

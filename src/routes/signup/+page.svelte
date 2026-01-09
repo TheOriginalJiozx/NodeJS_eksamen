@@ -8,6 +8,7 @@
   import { writable } from 'svelte/store';
   import logger from '../../lib/logger.js';
   import apiFetch from '../../lib/api.js';
+  import { isValidPassword, getPasswordError } from '../../lib/validation.js';
   
   let username = '';
   let email = '';
@@ -18,9 +19,10 @@
   let passwordError = '';
 
   async function signup() {
-    if (password.length < 6) {
-      passwordError = 'Adgangskode skal være minimum 6 tegn';
-      toast.error('Adgangskode skal være minimum 6 tegn');
+    const passwordErrorMessage = getPasswordError(password);
+    if (passwordErrorMessage) {
+      passwordError = passwordErrorMessage;
+      toast.error(passwordErrorMessage);
       return;
     }
 
@@ -33,7 +35,7 @@
       logger.debug(`Forsøger at registrere bruger: "${username}"`);
 
       /** @type {Response} */
-      const responseApiFetch = await apiFetch('/api/users', {
+      const responseApiFetch = await apiFetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, email, password })
@@ -184,9 +186,7 @@
             placeholder="Adgangskode"
             on:input={() => { passwordError = ''; }}
             on:blur={() => {
-              if (password.length > 0 && password.length < 6) {
-                passwordError = 'Adgangskode skal være minimum 6 tegn';
-              }
+              passwordError = getPasswordError(password) || '';
             }}
             class="w-full px-5 py-3 border border-white/40 rounded-xl bg-white/20 placeholder-white/70 text-white focus:outline-none focus:ring-2 focus:ring-green-300 transition"
           />

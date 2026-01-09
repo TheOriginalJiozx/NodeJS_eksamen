@@ -190,7 +190,6 @@
     /** @param {any} data */
     const handleCorrect = (data) => {
       hangmanGame = /** @type {any} */ (data).game;
-        // Score updates are handled by server 'score' events. Do not modify local score here.
       };
 
     /** @param {any} data */

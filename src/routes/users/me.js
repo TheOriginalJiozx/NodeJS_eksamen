@@ -14,9 +14,11 @@ router.patch('/password', authenticate, async (req, res) => {
     if (!currentPassword || !newPassword) {
       return res.status(400).json({ message: 'Nuværende og ny adgangskode kræves' });
     }
-    if (typeof newPassword !== 'string' || newPassword.length < 6) {
-      return res.status(400).json({ message: 'Ny adgangskode skal være mindst 6 tegn' });
-    }
+      const { getPasswordError } = await import('../../lib/validation.js');
+      const passwordError = getPasswordError(newPassword);
+      if (passwordError) {
+        return res.status(400).json({ message: passwordError });
+      }
     await changePassword(req.user.username, currentPassword, newPassword);
     res.status(200).json({ message: 'Adgangskode opdateret' });
     } catch (error) {
@@ -135,6 +137,7 @@ router.get('/download', authenticate, async (req, res) => {
 
 router.delete('/', async (req, res) => {
   try {
+    logger.debug({ body: req.body, headersSummary: { authentication: !!req.headers['authorization'] } }, 'DELETE /users/me called');
     const authenticationHeader = req.headers['authorization'];
     if (!authenticationHeader) return res.status(401).json({ message: 'Token mangler' });
     const token = authenticationHeader.split(' ')[1];
@@ -196,13 +199,113 @@ router.delete('/', async (req, res) => {
         return res.status(400).json({ message: 'eksportfilen blev ikke fundet' });
       }
     } else {
-      logger.info({ username }, 'Bekræftelse modtaget uden exportFilename — fortsætter uden at fjerne specifik backupfil');
+      try {
+        const [votesForExport] = await database.query('SELECT * FROM user_votes WHERE username = ?', [username]);
+        const exportObjectNow = {
+          user: { id: user.id, username: user.username, email: user.email, role: user.role },
+          votes: votesForExport || []
+        };
+        const filenameNow = `${username}-delete-export-${Date.now()}.json`;
+        const filePathNow = path.resolve(backupsDirectory, filenameNow);
+        await fs.promises.writeFile(filePathNow, JSON.stringify(exportObjectNow, null, 2), 'utf8');
+        try {
+          const statNow = await fs.promises.stat(filePathNow);
+          if (!statNow || !statNow.isFile()) throw new Error('Filen blev ikke fundet efter skrivning');
+        } catch (statError) {
+          logger.error({ statError, username, filePathNow }, 'Pre-delete export file not present after write (confirm=true)');
+          return res.status(500).json({ message: 'Kunne ikke gemme pre-delete export file' });
+        }
+        logger.info({ username, filePath: filePathNow }, 'Oprettede pre-delete export ved bekræftet sletning');
+        resolved = filePathNow;
+      } catch (createError) {
+        logger.error({ createError, username }, 'Kunne ikke oprette pre-delete export ved sletning; afbryder sletning');
+        return res.status(500).json({ message: 'Kunne ikke oprette export før sletning' });
+      }
     }
 
-    return res.status(501).json({ message: 'Bruger-sletning ikke implementeret i refactor endnu' });
+    try {
+      try {
+        await database.query('DELETE FROM user_votes WHERE username = ?', [username]);
+      } catch (voteError) {
+        logger.debug({ voteError, username }, 'Kunne ikke slette brugerens votes — fortsætter');
+      }
+
+      try {
+        await database.query('DELETE FROM users WHERE username = ?', [username]);
+      } catch (userError) {
+        logger.error({ message: userError, username }, 'Kunne ikke slette bruger i database');
+        return res.status(500).json({ message: 'Kunne ikke slette bruger fra database' });
+      }
+
+      if (resolved) {
+        try {
+          await fs.promises.unlink(resolved);
+        } catch (unlinkError) {
+          logger.debug({ unlinkError, resolved }, 'Kunne ikke fjerne angivet export-fil efter sletning');
+        }
+      }
+
+      try {
+        const files = await fs.promises.readdir(backupsDirectory);
+        const userPrefix = `${username}-`;
+        for (const file of files) {
+          try {
+            if (file.startsWith(userPrefix)) {
+              const backupsPath = path.resolve(backupsDirectory, file);
+              try { await fs.promises.unlink(backupsPath); } catch (error) { logger.debug({ error, backupsPath }, 'Kunne ikke slette backup-fil under cleanup'); }
+              for (const [token, info] of downloadTokens.entries()) {
+                if (info && info.filePath === backupsPath) downloadTokens.delete(token);
+              }
+            }
+          } catch (error) { logger.debug({ error, file }, 'Fejl ved iterering af backup-filer'); }
+        }
+      } catch (cleanupError) {
+        logger.debug({ cleanupError, backupsDirectory }, 'Kunne ikke rydde alle bruger-backups (fortsætter)');
+      }
+
+      try {
+        const socketServer = /** @type {any} */ (req.app.get('socketServer'));
+        const socketUsers = req.app.get('socketUsers');
+        if (socketUsers && typeof socketUsers === 'object') {
+          for (const sessionId of Object.keys(socketUsers)) {
+            try {
+              const entry = socketUsers[sessionId];
+              const username = entry && typeof entry === 'object' ? entry.username : entry;
+              if (String(username || '').trim().toLowerCase() === String(username || '').trim().toLowerCase()) delete socketUsers[sessionId];
+            } catch (error) { 
+              logger.debug({ error, sessionId, username }, 'Fejl ved sletning af socketUser entry ved brugersletning');
+             }
+          }
+        }
+        if (socketServer) {
+          try {
+            if (typeof /** @type {any} */ (socketServer).removeAdminByUsername === 'function') {
+              try { /** @type {any} */ (socketServer).removeAdminByUsername(username); } catch(error){
+                logger.debug({ error, username }, 'Fejl ved fjernelse af admin-sockets efter brugersletning');
+              }
+            }
+            if (typeof /** @type {any} */ (socketServer).recomputeAdminOnline === 'function') {
+              try { /** @type {any} */ (socketServer).recomputeAdminOnline(); } catch(error){
+                logger.debug({ error, username }, 'Fejl ved recomputeAdminOnline efter brugersletning');
+              }
+            }
+            socketServer.emit('adminOnline', { username, online: false });
+          } catch (error) { logger.debug({ error }, 'Fejl ved socket cleanup efter bruger-sletning'); }
+        }
+      } catch (socketError) {
+        logger.debug({ socketError }, 'Fejl under socket cleanup ved sletning');
+      }
+
+      logger.info({ username }, 'Bruger slettet');
+      return res.status(200).json({ message: 'Bruger slettet' });
+    } catch (finalError) {
+      logger.error({ finalError }, 'Uventet fejl under bruger-sletning');
+      return res.status(500).json({ message: 'Kunne ikke slette konto' });
+    }
   } catch (error) {
     logger.error({ error }, 'Fejl ved sletning af bruger');
-    return res.status(500).json({ message: 'Serverfejl' });
+    // Return error message to help debugging (can be softened later)
+    return res.status(500).json({ message: 'Serverfejl', detail: error instanceof Error ? error.message : String(error) });
   }
 });
 

@@ -44,7 +44,7 @@ router.post('/auth/login', async (req, res) => {
       } catch (innerError) {
         const message = innerError && innerError.message ? String(innerError.message) : '';
         const code = innerError && innerError.code ? String(innerError.code) : '';
-        logger.warn({ errMessage: message, errCode: code, userId: user.id }, 'Kunne ikke opdatere isOnline — forsøger reserveopdatering');
+        logger.warn({ errorMessage: message, errCode: code, userId: user.id }, 'Kunne ikke opdatere isOnline — forsøger reserveopdatering');
         if (message.includes('Ukendt kolonne') || code === 'ER_BAD_FIELD_ERROR') {
           await database.query('UPDATE users SET last_login = NOW(6) WHERE id = ?', [user.id]);
         } else {
@@ -129,8 +129,8 @@ router.post('/auth/logout', async (req, res) => {
                     if (typeof /** @type {any} */ (socketServer).removeAdminByUsername === 'function') {
                       try {
                         /** @type {any} */ (socketServer).removeAdminByUsername(user.username);
-                      } catch (err) {
-                        logger.debug({ err }, 'removeAdminByUsername fejlede under logout');
+                      } catch (error) {
+                        logger.debug({ error }, 'removeAdminByUsername fejlede under logout');
                       }
                     } else if (typeof /** @type {any} */ (socketServer).recomputeAdminOnline === 'function') /** @type {any} */ (socketServer).recomputeAdminOnline();
                   } catch (error) {

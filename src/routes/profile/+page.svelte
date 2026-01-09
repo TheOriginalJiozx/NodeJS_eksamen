@@ -66,8 +66,8 @@
           } else {
             logger.debug({ event }, 'safeEmit: socket er ikke klar til emit');
           }
-        } catch (err) {
-          logger.debug({ err }, 'safeEmit: emit fejlede');
+        } catch (error) {
+          logger.debug({ message: error }, 'safeEmit: emit fejlede');
         }
       };
       if (socket) {
