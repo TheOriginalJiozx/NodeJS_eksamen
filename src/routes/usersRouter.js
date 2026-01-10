@@ -1,49 +1,11 @@
 // @ts-nocheck
 import express from 'express';
-import publicRouter from './users/public.js';
 import meRouter from './users/me.js';
 import { downloadTokens } from './users/shared.js';
 import logger from '../lib/logger.js';
 import { verifyToken } from '../lib/authentication.js';
 
 const router = express.Router();
-
-router.get('/downloads/:token', async (req, res) => {
-	try {
-		const token = String(req.params.token || '').trim();
-		if (!token) return res.status(400).json({ message: 'Missing token' });
-		const info = downloadTokens.get(token);
-		if (!info) return res.status(404).json({ message: 'Token not found or expired' });
-		if (info.expires <= Date.now()) {
-			downloadTokens.delete(token);
-			return res.status(410).json({ message: 'Token expired' });
-		}
-
-		const fs = await import('fs');
-		const path = await import('path');
-		const filePath = info.filePath;
-		try {
-			await fs.promises.access(filePath);
-		} catch {
-			return res.status(404).json({ message: 'File not found' });
-		}
-
-		const filename = path.basename(filePath);
-		res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-		res.setHeader('Content-Type', 'application/json');
-		downloadTokens.delete(token);
-		logger.info({ token, filePath }, 'Download token used and revoked');
-		const stream = fs.createReadStream(filePath);
-		stream.on('error', (error) => {
-			logger.error({ error, token }, 'Fejl ved streaming af downloadtoken-fil');
-			res.status(500).end();
-		});
-		stream.pipe(res);
-		} catch {
-			logger.error({ message: 'Fejl ved gemning af backup' });
-			res.status(500).json({ message: 'Kunne ikke gemme backup' });
-		}
-});
 
 router.post('/users/backups', async (req, res) => {
 	try {
@@ -80,7 +42,6 @@ router.post('/users/backups', async (req, res) => {
 	}
 });
 
-router.use('/users', publicRouter);
 router.use('/users/me', meRouter);
 
 export default router;

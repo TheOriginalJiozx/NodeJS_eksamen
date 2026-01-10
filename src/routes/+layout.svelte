@@ -1,13 +1,13 @@
 <script>
   import '../tailwind.css';
   import { afterNavigate } from '$app/navigation';
-  import { toast, Toaster } from 'svelte-5-french-toast';
+  import { Toaster } from 'svelte-5-french-toast';
   import { io } from 'socket.io-client';
   import { onMount, onDestroy } from 'svelte';
   import logger from '../lib/logger.js';
   import { user as storeUser } from '../stores/user.js';
   import apiFetch from '../lib/api.js';
-  import authentication, { clearAuthenticationState, getToken } from '../stores/authentication.js';
+  import authentication, { clearAuthenticationState } from '../stores/authentication.js';
 
   let adminListInitialized = false;
 
@@ -27,7 +27,6 @@
   });
 
   let adminOnlineMessage = '';
-  let welcomeBtnDisabled = false;
 
   let lastAdminCount = 0;
   let adminListReady = false;
@@ -91,10 +90,6 @@
         logger.debug({ data }, 'DEBUG adminOnlineMessage data');
         logger.debug({ admins: data.admins }, 'DEBUG admins fra server');
         logger.debug(
-          { lastWelcomedAdminList: sessionStorage.getItem('lastWelcomedAdminList') },
-          'DEBUG sessionStorage lastWelcomedAdminList',
-        );
-        logger.debug(
           { adminOnlineList: sessionStorage.getItem('adminOnlineList') },
           'DEBUG sessionStorage adminOnlineList',
         );
@@ -103,7 +98,6 @@
         const adminListKey = JSON.stringify(data.admins || []);
         if (!data.admins || data.admins.length === 0) {
           adminListInitialized = false;
-          welcomeBtnDisabled = true;
           adminOnlineMessage = '';
           lastAdminList = [];
           if (typeof window !== 'undefined') localStorage.removeItem('adminOnlineList');
@@ -120,23 +114,6 @@
               );
             }
           }
-          /** @type {string[]} */
-          let lastWelcomedAdminListArray = [];
-          if (typeof window !== 'undefined') {
-            try {
-              const stored = localStorage.getItem('lastWelcomedAdminList');
-              if (stored) lastWelcomedAdminListArray = JSON.parse(stored);
-            } catch (error) {
-              lastWelcomedAdminListArray = [];
-            }
-          }
-          /** @type {string[]} */
-          const currentAdmins = Array.isArray(data.admins) ? data.admins : [];
-          const newAdmins = currentAdmins.filter(
-            (admin) => !lastWelcomedAdminListArray.includes(admin),
-          );
-          welcomeBtnDisabled = newAdmins.length === 0;
-          adminListInitialized = true;
         }
         adminListReady = true;
         lastAdminCount = data.count;
@@ -151,12 +128,7 @@
         }
       },
     );
-    globalSocket.on(
-      'adminWelcomeMessage',
-      /** @param {{from?:string, message?:string}} data */ (data) => {
-        toast(`Velkomst fra ${data.from}: ${data.message}`);
-      },
-    );
+
     const username = typeof window !== 'undefined' ? localStorage.getItem('username') : null;
     const emitRegisterIfNeeded = () => {
       if (!globalSocket) return;
@@ -199,73 +171,6 @@
       logger.error({ message: 'Fejl ved validering af gemt bruger ved montering', error });
     }
   });
-
-  function sendWelcomeToAdminGlobal() {
-    if (welcomeBtnDisabled || !globalSocket) return;
-    let senderName = '';
-    /** @type {string[]} */
-    let currentAdminList = [];
-    if (typeof window !== 'undefined') {
-      const storedName = localStorage.getItem('username');
-      if (storedName) senderName = storedName;
-      if (Array.isArray(lastAdminList) && lastAdminList.length > 0) {
-        currentAdminList = lastAdminList;
-      } else {
-        const adminListString = localStorage.getItem('adminOnlineList');
-        if (adminListString) {
-          try {
-            currentAdminList = JSON.parse(adminListString);
-          } catch (error) {
-            currentAdminList = [];
-          }
-        }
-      }
-      /** @type {string[]} */
-      let previouslyWelcomed = [];
-      try {
-        const stored = localStorage.getItem('lastWelcomedAdminList');
-        if (stored) previouslyWelcomed = JSON.parse(stored);
-      } catch (error) {
-        previouslyWelcomed = [];
-      }
-
-      const newAdmins = (currentAdminList || []).filter(
-        (admin) => !previouslyWelcomed.includes(admin),
-      );
-      if (!newAdmins || newAdmins.length === 0) {
-        logger.debug(
-          { from: senderName, admins: currentAdminList },
-          'Ingen nye admins at byde velkommen til',
-        );
-        return;
-      }
-
-      welcomeBtnDisabled = true;
-      logger.debug(
-        { from: senderName, newAdmins },
-        'Forsøger at sende velkomst til nye administrator(er)',
-      );
-    }
-    try {
-      globalSocket.emit('sendWelcomeToAdmin', {
-        from: senderName,
-        message: 'Velkommen til admin!',
-      });
-      logger.info({ from: senderName }, 'Sendt velkomst til administrator(er)');
-
-      try {
-        const stored = localStorage.getItem('lastWelcomedAdminList');
-        const previous = stored ? JSON.parse(stored) : [];
-        const union = Array.from(new Set([...(previous || []), ...(lastAdminList || [])]));
-        localStorage.setItem('lastWelcomedAdminList', JSON.stringify(union));
-      } catch (error) {
-        logger.error({ error }, 'Kunne ikke gemme lastWelcomedAdminList i localStorage');
-      }
-    } catch (error) {
-      logger.error({ error }, 'Kunne ikke sende sendWelcomeToAdmin');
-      welcomeBtnDisabled = false;
-    }
-  }
 </script>
 
 {#if adminListInitialized && adminOnlineMessage && !isGuest}

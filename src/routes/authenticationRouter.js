@@ -10,11 +10,6 @@ const router = express.Router();
 router.post('/auth/register', async (req, res) => {
   try {
     const { username, password, email } = req.body;
-    if (!username || !password || !email)
-      return res.status(400).json({ message: 'Brugernavn, adgangskode og email kræves' });
-
-    const existingUser = await getUserByUsername(username);
-    if (existingUser) return res.status(409).json({ message: 'Brugernavnet er taget' });
 
     const hashedPassword = await hashPassword(password);
     const userId = await createUser(username, email, hashedPassword);

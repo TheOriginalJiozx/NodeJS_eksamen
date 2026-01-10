@@ -100,42 +100,6 @@ router.get('/export', async (req, res) => {
   }
 });
 
-router.get('/download', authenticate, async (req, res) => {
-  try {
-    const file = String(req.query.file || '').trim();
-    if (!file) return res.status(400).json({ message: 'filforespørgsel er påkrævet' });
-
-    if (file.includes('..') || file.includes('/') || file.includes('\\')) {
-      return res.status(400).json({ message: 'Ugyldigt filnavn' });
-    }
-
-    const path = await import('path');
-    const fs = await import('fs');
-    const backupsDirectory = path.resolve(process.cwd(), 'backups');
-    const filePath = path.resolve(backupsDirectory, file);
-
-    if (!filePath.startsWith(backupsDirectory)) return res.status(400).json({ message: 'Ugyldig filsti' });
-
-    try {
-      await fs.promises.access(filePath);
-    } catch {
-      return res.status(404).json({ message: 'Filen blev ikke fundet' });
-    }
-
-    res.setHeader('Content-Disposition', `attachment; filename="${file}"`);
-    res.setHeader('Content-Type', 'application/json');
-    const stream = fs.createReadStream(filePath);
-    stream.on('error', (error) => {
-      logger.error({ error, file }, 'Fejl ved streaming af backup-fil');
-      res.status(500).end();
-    });
-    stream.pipe(res);
-  } catch (error) {
-    logger.error({ error }, 'Fejl ved download af backup');
-    res.status(500).json({ message: 'Serverfejl' });
-  }
-});
-
 router.delete('/', async (req, res) => {
   try {
     logger.debug({ body: req.body, headersSummary: { authentication: !!req.headers['authorization'] } }, 'DELETE /users/me called');
@@ -176,16 +140,6 @@ router.delete('/', async (req, res) => {
         return res.status(500).json({ message: 'Kunne ikke slette bruger fra database' });
       }
 
-      if (resolved) {
-        if (!downloadTokenForResolved) {
-          try {
-            await fs.promises.unlink(resolved);
-          } catch (unlinkError) {
-            logger.debug({ unlinkError, resolved }, 'Kunne ikke fjerne angivet export-fil efter sletning');
-          }
-        }
-      }
-
       try {
         const files = await fs.promises.readdir(backupsDirectory);
         const userPrefix = `${username}-`;
@@ -193,12 +147,18 @@ router.delete('/', async (req, res) => {
           try {
             if (file.startsWith(userPrefix)) {
               const backupsPath = path.resolve(backupsDirectory, file);
-              try { await fs.promises.unlink(backupsPath); } catch (error) { logger.debug({ error, backupsPath }, 'Kunne ikke slette backup-fil under cleanup'); }
+              try {
+                await fs.promises.unlink(backupsPath);
+              } catch (error) {
+                logger.debug({ error, backupsPath }, 'Kunne ikke slette backup-fil under cleanup');
+              }
               for (const [token, info] of downloadTokens.entries()) {
                 if (info && info.filePath === backupsPath) downloadTokens.delete(token);
               }
             }
-          } catch (error) { logger.debug({ error, file }, 'Fejl ved iterering af backup-filer'); }
+          } catch (error) {
+            logger.debug({ error, file }, 'Fejl ved iterering af backup-filer');
+          }
         }
       } catch (cleanupError) {
         logger.debug({ cleanupError, backupsDirectory }, 'Kunne ikke rydde alle bruger-backups (fortsætter)');
@@ -215,9 +175,10 @@ router.delete('/', async (req, res) => {
               if (String(username || '').trim().toLowerCase() === String(username || '').trim().toLowerCase()) delete socketUsers[sessionId];
             } catch (error) { 
               logger.debug({ error, sessionId, username }, 'Fejl ved sletning af socketUser entry ved brugersletning');
-             }
+            }
           }
         }
+        
         if (socketServer) {
           try {
             if (typeof /** @type {any} */ (socketServer).removeAdminByUsername === 'function') {
