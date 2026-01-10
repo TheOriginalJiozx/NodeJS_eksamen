@@ -9,6 +9,7 @@
   import apiFetch from '../../../lib/api.js';
   import logger from '../../../lib/logger.js';
   import { getToken, clearAuthenticationState } from '../../../stores/authentication.js';
+  import { changeColor } from '../../../lib/changeColor.js';
 
   /** @type {import('svelte/store').Writable<string>} */
   const backgroundGradient = writable('from-indigo-700 via-purple-700 to-fuchsia-600');
@@ -16,32 +17,6 @@
   /** @typedef {{ username: string }} UserData */
   /** @type {UserData} */
   let userData = { username: '' };
-
-  /**
-   * @returns {void}
-   */
-  function changeColor() {
-    const gradients = [
-      'from-blue-400 via-cyan-400 to-indigo-400',
-      'from-indigo-700 via-purple-700 to-fuchsia-600',
-      'from-orange-500 via-pink-500 to-rose-600',
-      'from-indigo-500 via-purple-500 to-pink-500',
-      'from-green-400 via-lime-400 to-yellow-400',
-      'from-lime-400 via-green-500 to-teal-500',
-      'from-red-500 via-orange-500 to-yellow-500',
-      'from-pink-500 via-fuchsia-500 to-purple-500',
-      'from-teal-400 via-cyan-500 to-blue-600',
-      'from-purple-700 via-pink-600 to-orange-500',
-      'from-yellow-400 via-orange-400 to-red-500',
-    ];
-    backgroundGradient.update((current) => {
-      let next;
-      do {
-        next = gradients[Math.floor(Math.random() * gradients.length)];
-      } while (next === current);
-      return next;
-    });
-  }
 
   /**
    * @typedef {Object} HangmanGame
@@ -358,10 +333,9 @@
       <p class="text-white text-center mt-2">Hej {userData.username}!</p>
       <p class="text-white text-center mt-2 font-semibold">Score: {playerScore}</p>
       <p class="text-white text-center mt-2 font-semibold italic">Denne score nulstilles hvis du forlader siden</p>
-      <button
-        on:click={changeColor}
-        class="mt-4 bg-white/30 hover:bg-white/50 text-white font-semibold py-2 px-4 rounded-xl transition"
-      >
+      <button on:click={() => changeColor(backgroundGradient)}
+        class="mt-4 bg-white/30 hover:bg-white/50 text-white
+        font-semibold py-2 px-4 rounded-xl transition">
         Skift sidefarve
       </button>
 
@@ -400,8 +374,8 @@
 
           <div class="mt-6 w-full">
             <div class="bg-white/10 rounded-lg p-3 max-h-40 overflow-y-auto mb-2">
-              {#each chatMessages as msg}
-                <p class="text-sm"><strong>{msg.name}:</strong> {msg.message}</p>
+              {#each chatMessages as message}
+                <p class="text-sm"><strong>{message.name}:</strong> {message.message}</p>
               {/each}
             </div>
             <div class="flex gap-2">

@@ -7,35 +7,13 @@
   import { toast } from 'svelte-5-french-toast';
   import { user } from '../stores/user.js';
   import logger from '../lib/logger.js';
+  import { changeColor } from '../lib/changeColor.js';
 
   $: currentUser = $user;
   $: isLoggedIn = !!currentUser;
 
   /** @type {import('svelte/store').Writable<string>} */
   const backgroundGradient = writable('from-orange-500 via-pink-500 to-rose-600');
-
-  function changeColor() {
-    const gradients = [
-      'from-orange-500 via-pink-500 to-rose-600',
-      'from-indigo-500 via-purple-500 to-pink-500',
-      'from-green-400 via-lime-400 to-yellow-400',
-      'from-blue-400 via-cyan-400 to-indigo-400',
-      'from-red-500 via-orange-500 to-yellow-500',
-      'from-pink-500 via-fuchsia-500 to-purple-500',
-      'from-teal-400 via-cyan-500 til-blue-600',
-      'from-purple-700 via-pink-600 to-orange-500',
-      'from-lime-400 via-green-500 to-teal-500',
-      'from-yellow-400 via-orange-400 to-red-500',
-    ];
-    backgroundGradient.update(current => {
-      let next;
-      do {
-        next = gradients[Math.floor(Math.random() * gradients.length)];
-      } while (next === current);
-      logger.debug(`Skiftet gradient fra "${current}" til "${next}"`);
-      return next;
-    });
-  }
 
   /** @type {Socket} */
   let socket;
@@ -56,7 +34,7 @@
     Grøn: 'bg-gradient-to-r from-green-400 via-green-500 to-green-600 text-white shadow-lg hover:brightness-110',
     Gul: 'bg-gradient-to-r from-yellow-400 via-yellow-500 to-yellow-600 text-white shadow-lg hover:brightness-110',
     Lyserød: 'bg-gradient-to-r from-pink-400 via-pink-500 to-pink-600 text-white shadow-lg hover:brightness-110',
-    'Lilla': 'bg-gradient-to-r from-purple-400 via-purple-500 to-purple-600 text-white shadow-lg hover:brightness-110'
+    Lilla: 'bg-gradient-to-r from-purple-400 via-purple-500 to-purple-600 text-white shadow-lg hover:brightness-110'
   };
 
   onMount(() => {
@@ -108,8 +86,9 @@
         Velkommen {currentUser?.username ?? 'Gæst'}!
       </h1>
 
-      <button on:click={changeColor}
-              class="mt-4 bg-white/30 hover:bg-white/50 text-white font-semibold py-2 px-4 rounded-xl transition">
+      <button on:click={() => changeColor(backgroundGradient)}
+        class="mt-4 bg-white/30 hover:bg-white/50 text-white
+        font-semibold py-2 px-4 rounded-xl transition">
         Skift sidefarve
       </button>
 

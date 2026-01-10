@@ -1,15 +1,19 @@
 <script>
   import { onMount } from 'svelte';
+  import { writable } from 'svelte/store';
   import { toast } from 'svelte-5-french-toast';
   import Navbar from '../../components/navbar.svelte';
   import Footer from '../../components/footer.svelte';
   import { goto } from '$app/navigation';
   import logger from '../../lib/logger.js';
   import { io } from 'socket.io-client';
-  import { onDestroy } from 'svelte';
   import apiFetch from '../../lib/api.js';
   import { getPasswordError } from '../../lib/validation.js';
   import { getToken, clearAuthenticationState, setAuthenticationState } from '../../stores/authentication.js';
+  import { changeColor } from '../../lib/changeColor.js';
+
+  /** @type {import('svelte/store').Writable<string>} */
+  const backgroundGradient = writable('from-indigo-700 via-purple-700 to-fuchsia-600');
 
   /** @type {{ username: string, role: string | null }} */
   let userData = { username: '', role: null };
@@ -367,11 +371,20 @@
 
 <Navbar />
 
-<div class="pt-20 min-h-screen flex flex-col justify-between bg-gradient-to-tr p-4 from-indigo-700 via-purple-700 to-fuchsia-600">
+<div class={"pt-20 min-h-screen flex flex-col justify-between bg-gradient-to-tr p-4 " + $backgroundGradient}>
   <div class="flex-grow flex justify-center items-center">
     <div class="bg-white/20 backdrop-blur-lg rounded-3xl shadow-2xl p-12 w-full max-w-md border border-white/30">
       <h1 class="text-4xl font-bold text-white text-center mb-4">Indstillinger</h1>
       <p class="text-white text-center text-lg">Her kan du ændre dit brugernavn og adgangskode.</p>
+
+      <div class="mt-4">
+        <button on:click={() => changeColor(backgroundGradient)}
+          class="mt-4 bg-white/30 hover:bg-white/50
+            text-white font-semibold py-2
+            px-4 rounded-xl transition">
+          Skift sidefarve
+        </button>
+      </div>
 
       <div class="mt-6 space-y-4">
         {#if !usernameChanged}

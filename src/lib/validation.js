@@ -2,14 +2,6 @@ export const MIN_PASSWORD_LENGTH = 6;
 
 /**
  * @param {string} password
- * @returns {boolean}
- */
-export function isValidPassword(password) {
-  return typeof password === 'string' && password.length >= MIN_PASSWORD_LENGTH;
-}
-
-/**
- * @param {string} password
  * @returns {string|null}
  */
 export function getPasswordError(password) {

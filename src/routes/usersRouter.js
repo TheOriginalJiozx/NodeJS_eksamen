@@ -2,7 +2,6 @@
 import express from 'express';
 import publicRouter from './users/public.js';
 import meRouter from './users/me.js';
-import adminRouter from './users/admin.js';
 import { downloadTokens } from './users/shared.js';
 import logger from '../lib/logger.js';
 import { verifyToken } from '../lib/authentication.js';
@@ -83,6 +82,5 @@ router.post('/users/backups', async (req, res) => {
 
 router.use('/users', publicRouter);
 router.use('/users/me', meRouter);
-router.use('/', adminRouter);
 
 export default router;

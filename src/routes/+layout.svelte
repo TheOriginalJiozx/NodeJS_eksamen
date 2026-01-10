@@ -54,7 +54,12 @@
   onMount(() => {
     if (authentication && typeof authentication.subscribe === 'function') {
       authenticationUnsubscribe = authentication.subscribe((value) => {
-        const role = value && value.role ? value.role : (typeof window !== 'undefined' ? localStorage.getItem('role') : null);
+        const role =
+          value && value.role
+            ? value.role
+            : typeof window !== 'undefined'
+              ? localStorage.getItem('role')
+              : null;
         isAdmin = role === 'Admin';
         const nowGuest = !role || role === 'Gæst';
         if (!value || !value.token || nowGuest) {
@@ -80,60 +85,78 @@
       const storedMessage = sessionStorage.getItem('adminOnlineMessage');
       if (storedMessage) adminOnlineMessage = storedMessage;
     }
-    globalSocket.on('adminOnlineMessage', /** @param {{count:number, message?:string, admins?:string[]}} data */ (data) => {
-      logger.debug({ data }, 'DEBUG adminOnlineMessage data');
+    globalSocket.on(
+      'adminOnlineMessage',
+      /** @param {{count:number, message?:string, admins?:string[]}} data */ (data) => {
+        logger.debug({ data }, 'DEBUG adminOnlineMessage data');
         logger.debug({ admins: data.admins }, 'DEBUG admins fra server');
-        logger.debug({ lastWelcomedAdminList: sessionStorage.getItem('lastWelcomedAdminList') }, 'DEBUG sessionStorage lastWelcomedAdminList');
-        logger.debug({ adminOnlineList: sessionStorage.getItem('adminOnlineList') }, 'DEBUG sessionStorage adminOnlineList');
-      adminListInitialized = true;
-      adminListReady = true;
-      const adminListKey = JSON.stringify(data.admins || []);
-      if (!data.admins || data.admins.length === 0) {
-        adminListInitialized = false;
-        welcomeBtnDisabled = true;
-        adminOnlineMessage = '';
-        lastAdminList = [];
-        if (typeof window !== 'undefined') localStorage.removeItem('adminOnlineList');
-      } else {
-        adminOnlineMessage = data.message || '';
-        lastAdminList = data.admins;
-        if (typeof window !== 'undefined') {
-          try {
-            localStorage.setItem('adminOnlineList', adminListKey);
-          } catch (error) {
-            logger.error({ error, adminListKey }, 'Kunne ikke gemme adminOnlineList i localStorage');
-          }
-        }
-        /** @type {string[]} */
-        let lastWelcomedAdminListArray = [];
-        if (typeof window !== 'undefined') {
-          try {
-            const stored = localStorage.getItem('lastWelcomedAdminList');
-            if (stored) lastWelcomedAdminListArray = JSON.parse(stored);
-          } catch (error) {
-            lastWelcomedAdminListArray = [];
-          }
-        }
-        /** @type {string[]} */
-        const currentAdmins = Array.isArray(data.admins) ? data.admins : [];
-        const newAdmins = currentAdmins.filter(admin => !lastWelcomedAdminListArray.includes(admin));
-        welcomeBtnDisabled = newAdmins.length === 0;
+        logger.debug(
+          { lastWelcomedAdminList: sessionStorage.getItem('lastWelcomedAdminList') },
+          'DEBUG sessionStorage lastWelcomedAdminList',
+        );
+        logger.debug(
+          { adminOnlineList: sessionStorage.getItem('adminOnlineList') },
+          'DEBUG sessionStorage adminOnlineList',
+        );
         adminListInitialized = true;
-      }
-      adminListReady = true;
-      lastAdminCount = data.count;
-      try {
-        if (typeof window !== 'undefined') {
-          if (adminOnlineMessage) sessionStorage.setItem('adminOnlineMessage', adminOnlineMessage);
-          else sessionStorage.removeItem('adminOnlineMessage');
+        adminListReady = true;
+        const adminListKey = JSON.stringify(data.admins || []);
+        if (!data.admins || data.admins.length === 0) {
+          adminListInitialized = false;
+          welcomeBtnDisabled = true;
+          adminOnlineMessage = '';
+          lastAdminList = [];
+          if (typeof window !== 'undefined') localStorage.removeItem('adminOnlineList');
+        } else {
+          adminOnlineMessage = data.message || '';
+          lastAdminList = data.admins;
+          if (typeof window !== 'undefined') {
+            try {
+              localStorage.setItem('adminOnlineList', adminListKey);
+            } catch (error) {
+              logger.error(
+                { error, adminListKey },
+                'Kunne ikke gemme adminOnlineList i localStorage',
+              );
+            }
+          }
+          /** @type {string[]} */
+          let lastWelcomedAdminListArray = [];
+          if (typeof window !== 'undefined') {
+            try {
+              const stored = localStorage.getItem('lastWelcomedAdminList');
+              if (stored) lastWelcomedAdminListArray = JSON.parse(stored);
+            } catch (error) {
+              lastWelcomedAdminListArray = [];
+            }
+          }
+          /** @type {string[]} */
+          const currentAdmins = Array.isArray(data.admins) ? data.admins : [];
+          const newAdmins = currentAdmins.filter(
+            (admin) => !lastWelcomedAdminListArray.includes(admin),
+          );
+          welcomeBtnDisabled = newAdmins.length === 0;
+          adminListInitialized = true;
         }
-      } catch (error) {
-        logger.debug({ error }, 'Kunne ikke opdatere sessionStorage for adminOnlineMessage');
-      }
-    });
-    globalSocket.on('adminWelcomeMessage', /** @param {{from?:string, message?:string}} data */ (data) => {
-      toast(`Velkomst fra ${data.from}: ${data.message}`);
-    });
+        adminListReady = true;
+        lastAdminCount = data.count;
+        try {
+          if (typeof window !== 'undefined') {
+            if (adminOnlineMessage)
+              sessionStorage.setItem('adminOnlineMessage', adminOnlineMessage);
+            else sessionStorage.removeItem('adminOnlineMessage');
+          }
+        } catch (error) {
+          logger.debug({ error }, 'Kunne ikke opdatere sessionStorage for adminOnlineMessage');
+        }
+      },
+    );
+    globalSocket.on(
+      'adminWelcomeMessage',
+      /** @param {{from?:string, message?:string}} data */ (data) => {
+        toast(`Velkomst fra ${data.from}: ${data.message}`);
+      },
+    );
     const username = typeof window !== 'undefined' ? localStorage.getItem('username') : null;
     const emitRegisterIfNeeded = () => {
       if (!globalSocket) return;
@@ -202,19 +225,32 @@
       try {
         const stored = localStorage.getItem('lastWelcomedAdminList');
         if (stored) previouslyWelcomed = JSON.parse(stored);
-      } catch (error) { previouslyWelcomed = []; }
+      } catch (error) {
+        previouslyWelcomed = [];
+      }
 
-      const newAdmins = (currentAdminList || []).filter(admin => !previouslyWelcomed.includes(admin));
+      const newAdmins = (currentAdminList || []).filter(
+        (admin) => !previouslyWelcomed.includes(admin),
+      );
       if (!newAdmins || newAdmins.length === 0) {
-        logger.debug({ from: senderName, admins: currentAdminList }, 'Ingen nye admins at byde velkommen til');
+        logger.debug(
+          { from: senderName, admins: currentAdminList },
+          'Ingen nye admins at byde velkommen til',
+        );
         return;
       }
 
       welcomeBtnDisabled = true;
-      logger.debug({ from: senderName, newAdmins }, 'Forsøger at sende velkomst til nye administrator(er)');
+      logger.debug(
+        { from: senderName, newAdmins },
+        'Forsøger at sende velkomst til nye administrator(er)',
+      );
     }
     try {
-      globalSocket.emit('sendWelcomeToAdmin', { from: senderName, message: 'Velkommen til admin!' });
+      globalSocket.emit('sendWelcomeToAdmin', {
+        from: senderName,
+        message: 'Velkommen til admin!',
+      });
       logger.info({ from: senderName }, 'Sendt velkomst til administrator(er)');
 
       try {
@@ -223,7 +259,7 @@
         const union = Array.from(new Set([...(previous || []), ...(lastAdminList || [])]));
         localStorage.setItem('lastWelcomedAdminList', JSON.stringify(union));
       } catch (error) {
-            logger.error({ error }, 'Kunne ikke gemme lastWelcomedAdminList i localStorage');
+        logger.error({ error }, 'Kunne ikke gemme lastWelcomedAdminList i localStorage');
       }
     } catch (error) {
       logger.error({ error }, 'Kunne ikke sende sendWelcomeToAdmin');

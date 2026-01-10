@@ -72,6 +72,7 @@ router.get('/export', async (req, res) => {
       logger.debug('export: Authorization header mangler');
       return res.status(401).json({ message: 'Token mangler' });
     }
+
     const token = authenticationHeader.split(' ')[1];
     const decoded = verifyToken(token);
     if (!decoded || !decoded.username) {
@@ -113,7 +114,7 @@ router.get('/download', authenticate, async (req, res) => {
     const backupsDirectory = path.resolve(process.cwd(), 'backups');
     const filePath = path.resolve(backupsDirectory, file);
 
-    if (!filePath.startsWith(backupsDirectory)) return res.status(400).json({ message: 'Invalid file path' });
+    if (!filePath.startsWith(backupsDirectory)) return res.status(400).json({ message: 'Ugyldig filsti' });
 
     try {
       await fs.promises.access(filePath);
@@ -149,79 +150,17 @@ router.delete('/', async (req, res) => {
     if (!user) return res.status(404).json({ message: 'Bruger findes ikke' });
 
     const { confirm } = req.body || {};
-    const exportFilename = (req.body && (req.body.exportPath || req.body.exportFilename || req.body.file)) || null;
 
     if (confirm !== true) {
-      logger.info({ username, seenConfirm: confirm }, 'Forhåndssletning af eksport anmodet uden eksplicit confirm=true — returnerer eksporttoken');
-      try {
-        const fs = await import('fs');
-        const path = await import('path');
-        const [votes] = await database.query('SELECT * FROM user_votes WHERE username = ?', [username]);
-        const exportObject = {
-          user: { id: user.id, username: user.username, email: user.email, role: user.role },
-          votes: votes || []
-        };
-
-        const backupsDirectory = path.resolve(process.cwd(), 'backups');
-        await fs.promises.mkdir(backupsDirectory, { recursive: true });
-        const filename = `${username}-pre-delete-export-${Date.now()}.json`;
-        const filePath = path.resolve(backupsDirectory, filename);
-        await fs.promises.writeFile(filePath, JSON.stringify(exportObject, null, 2), 'utf8');
-        try {
-          const stat = await fs.promises.stat(filePath);
-          if (!stat || !stat.isFile()) throw new Error('Filen blev ikke fundet efter skrivning');
-          logger.info({ username, filePath, size: stat.size }, 'Gemte pre-delete brugerdata export backup');
-          const token = generateRandomToken();
-          downloadTokens.set(token, { filePath, expires: Date.now() + DOWNLOAD_TTL_MS });
-          const publicUrl = `/api/downloads/${token}`;
-          return res.status(200).json({ message: 'Export created', exportFilename: filename, downloadUrl: publicUrl, token, expiresIn: DOWNLOAD_TTL_MS });
-        } catch (statError) {
-          logger.error({ statError, username, filePath }, 'Pre-delete export file not present after write');
-          return res.status(500).json({ message: 'Kunne ikke gemme pre-delete export file' });
-        }
-      } catch (exportError) {
-        logger.error({ error: exportError, username }, 'Kunne ikke eksportere brugerdata før sletning; afbryder sletning');
-        return res.status(500).json({ message: 'Kunne ikke eksportere brugerdata før sletning' });
-      }
+      return res.status(400).json({ message: 'Bekræftelse kræves for sletning (send confirm=true)' });
     }
 
     const fs = await import('fs');
     const path = await import('path');
     const backupsDirectory = path.resolve(process.cwd(), 'backups');
     let resolved = null;
-    if (exportFilename) {
-      resolved = path.resolve(backupsDirectory, exportFilename);
-      if (!resolved.startsWith(backupsDirectory)) return res.status(400).json({ message: 'Ugyldigt eksportfilnavn' });
-      try {
-        const stat = await fs.promises.stat(resolved);
-        if (!stat || !stat.isFile()) return res.status(400).json({ message: 'eksportfilen findes ikke' });
-      } catch {
-        return res.status(400).json({ message: 'eksportfilen blev ikke fundet' });
-      }
-    } else {
-      try {
-        const [votesForExport] = await database.query('SELECT * FROM user_votes WHERE username = ?', [username]);
-        const exportObjectNow = {
-          user: { id: user.id, username: user.username, email: user.email, role: user.role },
-          votes: votesForExport || []
-        };
-        const filenameNow = `${username}-delete-export-${Date.now()}.json`;
-        const filePathNow = path.resolve(backupsDirectory, filenameNow);
-        await fs.promises.writeFile(filePathNow, JSON.stringify(exportObjectNow, null, 2), 'utf8');
-        try {
-          const statNow = await fs.promises.stat(filePathNow);
-          if (!statNow || !statNow.isFile()) throw new Error('Filen blev ikke fundet efter skrivning');
-        } catch (statError) {
-          logger.error({ statError, username, filePathNow }, 'Pre-delete export file not present after write (confirm=true)');
-          return res.status(500).json({ message: 'Kunne ikke gemme pre-delete export file' });
-        }
-        logger.info({ username, filePath: filePathNow }, 'Oprettede pre-delete export ved bekræftet sletning');
-        resolved = filePathNow;
-      } catch (createError) {
-        logger.error({ createError, username }, 'Kunne ikke oprette pre-delete export ved sletning; afbryder sletning');
-        return res.status(500).json({ message: 'Kunne ikke oprette export før sletning' });
-      }
-    }
+    let downloadTokenForResolved = null;
+    let resolvedFilename = null;
 
     try {
       try {
@@ -238,10 +177,12 @@ router.delete('/', async (req, res) => {
       }
 
       if (resolved) {
-        try {
-          await fs.promises.unlink(resolved);
-        } catch (unlinkError) {
-          logger.debug({ unlinkError, resolved }, 'Kunne ikke fjerne angivet export-fil efter sletning');
+        if (!downloadTokenForResolved) {
+          try {
+            await fs.promises.unlink(resolved);
+          } catch (unlinkError) {
+            logger.debug({ unlinkError, resolved }, 'Kunne ikke fjerne angivet export-fil efter sletning');
+          }
         }
       }
 
@@ -304,7 +245,6 @@ router.delete('/', async (req, res) => {
     }
   } catch (error) {
     logger.error({ error }, 'Fejl ved sletning af bruger');
-    // Return error message to help debugging (can be softened later)
     return res.status(500).json({ message: 'Serverfejl', detail: error instanceof Error ? error.message : String(error) });
   }
 });

@@ -8,6 +8,7 @@
   import { goto } from '$app/navigation';
   import apiFetch from '../../../lib/api.js';
   import { getToken, clearAuthenticationState } from '../../../stores/authentication.js';
+  import { changeColor } from '../../../lib/changeColor.js';
 
   /** @type {import('svelte/store').Writable<string>} */
   const backgroundGradient = writable('from-orange-500 via-pink-500 to-rose-600');
@@ -15,32 +16,6 @@
   /** @typedef {{ username: string }} UserData */
   /** @type {UserData} */
   let userData = { username: '' };
-
-  /**
-   * @returns {void}
-   */
-  function changeColor() {
-    const gradients = [
-      'from-blue-400 via-cyan-400 to-indigo-400',
-      'from-indigo-700 via-purple-700 to-fuchsia-600',
-      'from-orange-500 via-pink-500 to-rose-600',
-      'from-indigo-500 via-purple-500 to-pink-500',
-      'from-green-400 via-lime-400 to-yellow-400',
-      'from-lime-400 via-green-500 to-teal-500',
-      'from-red-500 via-orange-500 to-yellow-500',
-      'from-pink-500 via-fuchsia-500 to-purple-500',
-      'from-teal-400 via-cyan-500 to-blue-600',
-      'from-purple-700 via-pink-600 to-orange-500',
-      'from-yellow-400 via-orange-400 to-red-500',
-    ];
-    backgroundGradient.update((current) => {
-      let next;
-      do {
-        next = gradients[Math.floor(Math.random() * gradients.length)];
-      } while (next === current);
-      return next;
-    });
-  }
 
   /** @type {string} */
   let message = '';
@@ -135,18 +110,16 @@
       <h1 class="text-4xl font-bold text-white text-center mb-4">Farvespil</h1>
       <p class="text-white text-center text-lg">Velkommen, {userData.username}!</p>
 
-      <button
-        on:click={changeColor}
-        class="mt-4 bg-white/30 hover:bg-white/50 text-white font-semibold py-2 px-4 rounded-xl transition"
-      >
+      <button on:click={() => changeColor(backgroundGradient)}
+        class="mt-4 bg-white/30 hover:bg-white/50
+        text-white font-semibold py-2 px-4 rounded-xl transition">
         Skift sidefarve
       </button>
 
       <h1 class="text-white mt-4">{message}</h1>
       <div class="grid grid-cols-5 gap-2 mt-2">
         {#each colors as color}
-          <button
-            on:click={() => clickColor(color.name)}
+          <button on:click={() => changeColor(backgroundGradient)}
             class="p-4 rounded text-white"
             style="background-color: {color.hex}"
             aria-label={`Vælg ${color.name}`}

@@ -12,7 +12,7 @@ import logger from '../lib/logger.js';
  *   getActivePollId?: () => number | null
  * }} options
  */
-export function attachSocketHandlers(socketServer, { socketUsers, onlineAdmins, colorGame, activePollId, getActivePollData, getActivePollId }) {
+export function attachSocketHandlers(socketServer, { socketUsers, onlineAdmins, colorGame, activePollId, getActivePollData, recordVote, getActivePollId }) {
   /**
    * @type {Map<string, {username:string, sockets:Set<string>} >}
    */
@@ -259,7 +259,54 @@ export function attachSocketHandlers(socketServer, { socketUsers, onlineAdmins, 
     logger.debug({ error }, 'Kunne ikke hente aktuel afstemningsdata til forbindelse');
     }
 
-    // --- Administratorsporing ---
+    /** @param {{option:string, username:string}} data */
+    socket.on('vote', async (data = {}) => {
+      try {
+        const { option, username } = data || {};
+        if (!option || !username) return;
+        const pollId = typeof getActivePollId === 'function' ? getActivePollId() : activePollId;
+        if (!pollId) {
+          logger.debug({ option, username }, 'Vote modtaget men ingen aktiv poll');
+          return;
+        }
+        if (typeof recordVote === 'function') {
+          try {
+            const ok = await recordVote(pollId, username, option);
+            if (!ok) {
+              logger.debug({ option, username, pollId }, 'recordVote returnerede falsk');
+            }
+          } catch (recordVoteError) {
+            logger.debug({ recordVoteError, option, username, pollId }, 'Fejl ved recordVote');
+          }
+        } else {
+          try {
+            const database = await import('../database.js');
+            const recordVoteFunction = /** @type {any} */ (database).recordVote;
+            if (typeof recordVoteFunction === 'function') await recordVoteFunction(pollId, username, option);
+          } catch (error) {
+            logger.debug({ error }, 'Kunne ikke importere database.recordVote under vote');
+          }
+        }
+
+        try {
+          if (typeof getActivePollData === 'function') {
+            const updated = await getActivePollData(pollId);
+            if (updated) socketServer.emit('pollUpdate', updated);
+          } else {
+            const database = await import('../database.js');
+            const getActivePollDataFunction = /** @type {any} */ (database).getActivePollData;
+            if (typeof getActivePollDataFunction === 'function') {
+              const updated = await getActivePollDataFunction(pollId);
+              if (updated) socketServer.emit('pollUpdate', updated);
+            }
+          }
+        } catch (emitError) {
+          logger.debug({ emitError }, 'Kunne ikke sende pollUpdate efter vote');
+        }
+      } catch (error) {
+        logger.debug({ error, data }, 'vote handler fejl');
+      }
+    });
     /** @param {{username:string, online:boolean}} data */
     socket.on('adminOnline', async (data = {}) => {
       try {

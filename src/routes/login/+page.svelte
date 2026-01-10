@@ -8,7 +8,7 @@
   import { toast } from "svelte-5-french-toast";
   import { writable } from 'svelte/store';
   import logger from '../../lib/logger.js';
-    import { error } from "@sveltejs/kit";
+  import { changeColor } from '../../lib/changeColor.js';
   
   let username = '';
   let password = '';
@@ -103,30 +103,6 @@
   /** @type {import('svelte/store').Writable<string>} */
   const backgroundGradient = writable('from-indigo-700 via-purple-700 to-fuchsia-600');
 
-  function changeColor() {
-    const gradients = [
-      'from-indigo-700 via-purple-700 to-fuchsia-600',
-      'from-red-700 via-red-900 til-black',
-      'from-orange-500 via-pink-500 til-rose-600',
-      'from-indigo-500 via-purple-500 til-pink-500',
-      'from-green-400 via-lime-400 til-yellow-400',
-      'from-blue-400 via-cyan-400 til-indigo-400',
-      'from-red-500 via-orange-500 til-yellow-500',
-      'from-pink-500 via-fuchsia-500 til-purple-500',
-      'from-teal-400 via-cyan-500 til-blue-600',
-      'from-purple-700 via-pink-600 til-orange-500',
-      'from-lime-400 via-green-500 til-teal-500',
-      'from-yellow-400 via-orange-400 til-red-500',
-    ];
-    backgroundGradient.update(current => {
-      let next;
-      do {
-        next = gradients[Math.floor(Math.random() * gradients.length)];
-      } while (next === current);
-      logger.debug(`Skiftet gradient fra "${current}" til "${next}"`);
-      return next;
-    });
-  }
 </script>
 
 <svelte:head>
@@ -170,7 +146,7 @@
         </button>
       </form>
 
-      <button on:click={changeColor}
+      <button on:click={() => changeColor(backgroundGradient)}
             class="mt-4 bg-white/30 hover:bg-white/50
             text-white font-semibold py-2
             px-4 rounded-xl transition">
