@@ -4,7 +4,7 @@ import { changePassword, generateToken, verifyToken, getUserByUsername, changeUs
 import logger from '../../lib/logger.js';
 import { database } from '../../database.js';
 import authenticate from '../../middleware/authenticate.js';
-import { downloadTokens, DOWNLOAD_TTL_MS, generateRandomToken } from './shared.js';
+import { downloadTokens } from './shared.js';
 
 const router = express.Router();
 
@@ -122,9 +122,6 @@ router.delete('/', async (req, res) => {
     const fs = await import('fs');
     const path = await import('path');
     const backupsDirectory = path.resolve(process.cwd(), 'backups');
-    let resolved = null;
-    let downloadTokenForResolved = null;
-    let resolvedFilename = null;
 
     try {
       try {

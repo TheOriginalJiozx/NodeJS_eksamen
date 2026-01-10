@@ -25,7 +25,11 @@ export function changeColor(backgroundGradient) {
     do {
       next = gradients[Math.floor(Math.random() * gradients.length)];
     } while (next === current);
-    try { logger.debug(`Skiftet gradient fra "${current}" til "${next}"`); } catch {}
+    try {
+        logger.debug(`Skiftet gradient fra "${current}" til "${next}"`);
+    } catch (error) {
+        logger.debug({ error }, 'changeColor: logger failed');
+    }
     return next;
   });
 }

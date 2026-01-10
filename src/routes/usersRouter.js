@@ -1,9 +1,8 @@
 // @ts-nocheck
 import express from 'express';
 import meRouter from './users/me.js';
-import { downloadTokens } from './users/shared.js';
 import logger from '../lib/logger.js';
-import { verifyToken } from '../lib/authentication.js';
+import { verifyToken, getUserByUsername, getUserByEmail } from '../lib/authentication.js';
 
 const router = express.Router();
 
@@ -39,6 +38,32 @@ router.post('/users/backups', async (req, res) => {
 	} catch (error) {
 		logger.error({ error }, 'Fejl i /api/users/backups');
 		res.status(500).json({ message: 'Serverfejl' });
+	}
+});
+
+router.get('/users/check-username', async (req, res) => {
+	try {
+		const username = String(req.query.username || '').trim();
+		if (!username) return res.status(400).json({ message: 'Brugernavn mangler' });
+
+		const user = await getUserByUsername(username);
+		return res.status(200).json({ available: !user });
+	} catch (error) {
+		logger.error({ error }, 'check-username: fejl');
+		return res.status(500).json({ message: 'Serverfejl' });
+	}
+});
+
+router.get('/users/check-email', async (req, res) => {
+	try {
+		const email = String(req.query.email || '').trim();
+		if (!email) return res.status(400).json({ message: 'E-mail mangler' });
+
+		const user = await getUserByEmail(email);
+		return res.status(200).json({ available: !user });
+	} catch (error) {
+		logger.error({ error }, 'check-email: fejl');
+		return res.status(500).json({ message: 'Serverfejl' });
 	}
 });
 
