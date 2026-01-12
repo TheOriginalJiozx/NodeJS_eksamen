@@ -89,76 +89,82 @@ router.get('/auth/me', authenticate, async (req, res) => {
 router.post('/auth/logout', async (req, res) => {
   try {
     const authenticationHeader = req.headers['authorization'] || '';
-    const token = authenticationHeader.split(' ')[1];
-    if (token) {
-      const decoded = verifyToken(token);
-      if (decoded && decoded.username) {
-        try {
-          const user = await getUserByUsername(decoded.username);
-          if (user) {
-            try {
-              await database.query('UPDATE users SET isOnline = 0 WHERE username = ?', [user.username]);
-            } catch (databaseError) {
-              logger.error({ error: databaseError, username: user.username }, 'Fejl ved indstilling af isOnline=0 ved udlogning');
+    const token = (authenticationHeader.split(' ')[1]) || null;
+    if (!token) {
+      return res.status(200).json({ success: true });
+    }
+
+    const decoded = verifyToken(token);
+    if (!decoded || !decoded.username) {
+      return res.status(200).json({ success: true });
+    }
+
+    const username = decoded.username;
+    const user = await getUserByUsername(username).catch((error) => {
+      logger.error({ error }, 'Fejl under søgning efter bruger ved udlogning');
+      return null;
+    });
+    if (!user) return res.status(200).json({ success: true });
+
+    await database.query('UPDATE users SET isOnline = 0 WHERE username = ?', [user.username]).catch((error) => {
+      logger.error({ error, username: user.username }, 'Fejl ved indstilling af isOnline=0 ved udlogning');
+    });
+
+    if (user.role && String(user.role).toLowerCase() === 'admin') {
+      try {
+        const socketServer = /** @type {any} */ (req.app.get('socketServer'));
+        const socketUsers = req.app.get('socketUsers');
+
+        if (socketUsers && typeof socketUsers === 'object') {
+          Object.keys(socketUsers).forEach((sessionId) => {
+            const entry = socketUsers[sessionId];
+            const entryName = entry && typeof entry === 'object' ? entry.username : entry;
+            if (String(entryName || '').trim().toLowerCase() === String(user.username || '').trim().toLowerCase()) {
+              delete socketUsers[sessionId];
             }
+          });
+        }
 
-            if (user.role && user.role.toLowerCase() === 'admin') {
-              try {
-                const socketServer = /** @type {any} */ (req.app.get('socketServer'));
-                const socketUsers = req.app.get('socketUsers');
-
-                try {
-                  if (socketUsers && typeof socketUsers === 'object') {
-                    for (const sessionId of Object.keys(socketUsers)) {
-                      const entry = socketUsers[sessionId];
-                      const uname = entry && typeof entry === 'object' ? entry.username : entry;
-                      if (String(uname || '').trim().toLowerCase() === String(user.username || '').trim().toLowerCase()) delete socketUsers[sessionId];
-                    }
-                  }
-                } catch (error) {
-                  logger.debug({ error }, 'Kunne ikke rense socketBrugere ved logout');
-                }
-
-                if (socketServer) {
-                  try {
-                    if (typeof /** @type {any} */ (socketServer).removeAdminByUsername === 'function') {
-                      try {
-                        /** @type {any} */ (socketServer).removeAdminByUsername(user.username);
-                      } catch (error) {
-                        logger.debug({ error }, 'removeAdminByUsername fejlede under logout');
-                      }
-                    } else if (typeof /** @type {any} */ (socketServer).recomputeAdminOnline === 'function') /** @type {any} */ (socketServer).recomputeAdminOnline();
-                  } catch (error) {
-                    logger.debug({ error }, 'Kunne ikke kalde recomputeAdminOnline ved logout');
-                  }
-                  socketServer.emit('adminOnline', { username: user.username, online: false });
-                  try {
-                    const onlineAdmins = req.app.get('onlineAdmins') || new Set();
-                    const admins = Array.isArray(onlineAdmins) ? onlineAdmins : Array.from(onlineAdmins);
-                    const count = Array.isArray(admins) ? admins.length : 0;
-                    let message = '';
-                    if (count === 1) message = 'En admin er online';
-                    else if (count > 1) message = `${count} admins er online`;
-                    socketServer.emit('adminOnlineMessage', { count, message, admins });
-                  } catch (error) {
-                    logger.debug({ error }, 'Kunne ikke emit adminOnlineMessage ved logout');
-                  }
-                }
-              } catch (error) {
-                logger.debug({ error }, 'Kunne ikke opdatere onlineadministratorer under logoutprocessen');
-              }
+        if (socketServer) {
+          if (typeof /** @type {any} */ (socketServer).removeAdminByUsername === 'function') {
+            try {
+              /** @type {any} */ (socketServer).removeAdminByUsername(user.username);
+          } catch(error){
+            logger.debug({ error }, 'removeAdminByUsername fejlede under logout');
+          }} else if (typeof /** @type {any} */ (socketServer).recomputeAdminOnline === 'function') {
+            try {
+              /** @type {any} */ (socketServer).recomputeAdminOnline();
+            } catch(error){
+              logger.debug({ error }, 'recomputeAdminOnline fejlede under logout');
             }
           }
-        } catch (error) {
-          logger.error({ error }, 'Fejl under søgning efter bruger ved udlogning');
+
+          try {
+            socketServer.emit('adminOnline', { username: user.username, online: false });
+          } catch(error){
+            logger.debug({ error }, 'Kunne ikke emit adminOnline ved logout');
+          }
+
+          try {
+            const onlineAdmins = req.app.get('onlineAdmins') || new Set();
+            const admins = Array.isArray(onlineAdmins) ? onlineAdmins : Array.from(onlineAdmins);
+            const count = Array.isArray(admins) ? admins.length : 0;
+            const message = count === 1 ? 'En admin er online' : count > 1 ? `${count} admins er online` : '';
+            socketServer.emit('adminOnlineMessage', { count, message, admins });
+          } catch (error) {
+            logger.debug({ error }, 'Kunne ikke emit adminOnlineMessage ved logout');
+          }
         }
+      } catch (error) {
+        logger.debug({ error }, 'Fejl ved opdatering af onlineadministratorer under logout');
       }
     }
+
+    return res.status(200).json({ success: true });
   } catch (error) {
     logger.error({ error }, 'Fejl ved behandling af logout');
+    return res.status(500).json({ success: false, message: error instanceof Error ? error.message : 'Fejl ved behandling af logout' });
   }
-
-  res.status(200).json({ success: true });
 });
 
 export default router;

@@ -248,6 +248,17 @@ export function attachSocketHandlers(socketServer, { socketUsers, onlineAdmins, 
       }
     });
 
+    // --- Color game click handler ---
+    socket.on('click', (color) => {
+      try {
+        if (colorGame && typeof colorGame.handleClick === 'function') {
+          colorGame.handleClick(socket, color);
+        }
+      } catch (error) {
+        logger.debug({ error, color }, 'Fejl ved håndtering af color click');
+      }
+    });
+
     // --- Afstemning ---
     try {
       const pollId = typeof getActivePollId === 'function' ? getActivePollId() : activePollId;

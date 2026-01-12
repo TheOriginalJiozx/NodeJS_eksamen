@@ -1,17 +1,16 @@
 <script>
-  import { user } from '../stores/user.js';
-  import apiFetch from '../lib/api.js';
-  import { clearAuthenticationState, authenticate } from '../stores/authentication.js';
+  import { user } from '../../src/stores/user.js';
+  import apiFetch from '../../src/lib/api.js';
+  import { clearAuthenticationState } from '../../src/stores/authentication.js';
   import { goto } from '$app/navigation';
   import { toast } from 'svelte-5-french-toast';
-  import logger from '../lib/logger.js';
+  import logger from '../../src/lib/logger.js';
 
   export let links = [{ href: '/', label: 'Hjem' }];
 
   $: currentUser = $user;
 
   /**
-   * Logout the current user and notify server if admin.
    * @returns {Promise<void>}
    */
   async function logout() {

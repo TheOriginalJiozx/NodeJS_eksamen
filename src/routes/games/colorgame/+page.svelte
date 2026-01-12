@@ -119,7 +119,8 @@
       <h1 class="text-white mt-4">{message}</h1>
       <div class="grid grid-cols-5 gap-2 mt-2">
         {#each colors as color}
-          <button on:click={() => changeColor(backgroundGradient)}
+          <button
+            on:click={() => clickColor(color.name)}
             class="p-4 rounded text-white"
             style="background-color: {color.hex}"
             aria-label={`Vælg ${color.name}`}

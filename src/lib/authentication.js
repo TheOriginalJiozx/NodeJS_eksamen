@@ -57,8 +57,8 @@ function prepareKey(input, wrapType) {
     const base64clean = value.replace(/\s+/g, '');
     if (/^[A-Za-z0-9+/=]+$/.test(base64clean) && base64clean.length > 100) {
         const chunks = base64clean.match(/.{1,64}/g) || [base64clean];
-        const pemBody = chunks.join('\n');
-        return `-----BEGIN ${wrapType}-----\n${pemBody}\n-----END ${wrapType}-----`;
+        const privacyEnhancedMailBody = chunks.join('\n');
+        return `-----BEGIN ${wrapType}-----\n${privacyEnhancedMailBody}\n-----END ${wrapType}-----`;
     }
 
     return value;
@@ -112,19 +112,6 @@ try {
     const errorMessage = errorAny && typeof errorAny === 'object' && 'message' in errorAny ? String(errorAny.message) : String(errorAny);
     logger.error({ error: errorAny, message: errorMessage }, 'OpenSSL: kunne ikke parse PRIVATE_KEY/PUBLIC_KEY');
     throw new Error('Privat/public-nøgler kunne ikke parses af OpenSSL. Kontrollér at nøgler er gyldige PEM-strenge (ukrypterede) i .env');
-}
-
-/**
- * @returns {Promise<User[]>}
- */
-export async function readUsers() {
-
-    /** @type {[User[], import('mysql2/promise').FieldPacket[]]} */
-    const [rows] = await database.query(
-        'SELECT id, username, email, password, role FROM users'
-    );
-
-    return rows;
 }
 
 /**

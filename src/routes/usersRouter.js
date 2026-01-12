@@ -44,8 +44,6 @@ router.post('/users/backups', async (req, res) => {
 router.get('/users/check-username', async (req, res) => {
 	try {
 		const username = String(req.query.username || '').trim();
-		if (!username) return res.status(400).json({ message: 'Brugernavn mangler' });
-
 		const user = await getUserByUsername(username);
 		return res.status(200).json({ available: !user });
 	} catch (error) {
@@ -57,8 +55,6 @@ router.get('/users/check-username', async (req, res) => {
 router.get('/users/check-email', async (req, res) => {
 	try {
 		const email = String(req.query.email || '').trim();
-		if (!email) return res.status(400).json({ message: 'E-mail mangler' });
-
 		const user = await getUserByEmail(email);
 		return res.status(200).json({ available: !user });
 	} catch (error) {

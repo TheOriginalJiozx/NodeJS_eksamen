@@ -1,4 +1,5 @@
 import { writable, get } from 'svelte/store';
+import { user as userStore } from './user.js';
 import logger from '../lib/logger.js';
 
 let initial = null;
@@ -17,16 +18,25 @@ export const authenticate = writable(initial);
  */
 export function setAuthenticationState({ token = null, username = null, role = null } = {}) {
   const jwt = token || null;
-  const user = username || null;
+  const usernameValue = username || null;
   const userRole = role || null;
-  authenticate.set({ token: jwt, username: user, role: userRole });
+  authenticate.set({ token: jwt, username: usernameValue, role: userRole });
   if (typeof window !== 'undefined') {
     if (jwt) localStorage.setItem('jwt', jwt);
     else localStorage.removeItem('jwt');
-    if (user) localStorage.setItem('username', user);
+    if (usernameValue) localStorage.setItem('username', usernameValue);
     else localStorage.removeItem('username');
     if (userRole) localStorage.setItem('role', userRole);
     else localStorage.removeItem('role');
+  }
+
+  try {
+    if (typeof userStore !== 'undefined') {
+      if (usernameValue) userStore.set({ username: usernameValue });
+      else userStore.set(null);
+    }
+  } catch (error) {
+    logger.debug({ error }, 'setAuthenticationState: kunne ikke opdatere brugerstore');
   }
 }
 
@@ -38,11 +48,16 @@ export function clearAuthenticationState() {
       localStorage.removeItem('username');
       localStorage.removeItem('role');
       localStorage.removeItem('adminOnlineList');
-      localStorage.removeItem('lastWelcomedAdminList');
     } catch (error) {
       logger.debug({ error }, 'clearAuthenticationState: kunne ikke fjerne nogle localStorage-nøgler');
     }
   }
+
+  try {
+    if (typeof userStore !== 'undefined') userStore.set(null);
+  } catch (error) {
+    logger.debug({ error }, 'clearAuthenticationState: kunne ikke rydde brugerstore');
+    }
 }
 
 export function getToken() {
