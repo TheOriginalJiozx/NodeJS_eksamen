@@ -11,7 +11,8 @@
 		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
 		"tailwind:init": "tailwindcss init tailwind.config.cjs -p",
 		"lint": "eslint \"src/**/*.js\" --ext .js,.ts",
-		"lint:fix": "eslint \"src/**/*.js\" --ext .js,.ts --fix"
+		"lint:fix": "eslint \"src/**/*.js\" --ext .js,.ts --fix",
+		"mysql": "mysql -u root -p1234 -h localhost nodejs_mandatory"
 	},
 	"files": [
 		"dist",
