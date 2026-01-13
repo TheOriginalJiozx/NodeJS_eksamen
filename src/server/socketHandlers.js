@@ -248,7 +248,6 @@ export function attachSocketHandlers(socketServer, { socketUsers, onlineAdmins, 
       }
     });
 
-    // --- Color game click handler ---
     socket.on('click', (color) => {
       try {
         if (colorGame && typeof colorGame.handleClick === 'function') {
@@ -259,7 +258,6 @@ export function attachSocketHandlers(socketServer, { socketUsers, onlineAdmins, 
       }
     });
 
-    // --- Afstemning ---
     try {
       const pollId = typeof getActivePollId === 'function' ? getActivePollId() : activePollId;
       if (pollId && typeof getActivePollData === 'function') {

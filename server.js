@@ -13,9 +13,20 @@ import { initializeColorGame } from './src/games/colorgame.js';
 import usersRouter from './src/routes/usersRouter.js';
 import authenticationRouter from './src/routes/authenticationRouter.js';
 import attachSocketHandlers from './src/server/socketHandlers.js';
+import { rateLimit } from 'express-rate-limit'
 
 const app = express();
 app.use(bodyParser.json());
+
+const limiter = rateLimit({
+	windowMs: 15 * 60 * 1000,
+	limit: 100,
+	standardHeaders: 'draft-8',
+	legacyHeaders: false,
+	ipv6Subnet: 56
+})
+
+app.use(limiter)
 
 /**
  * @param {import('express').Request} req
@@ -87,10 +98,8 @@ app.get('/api/games', async (req, res) => {
  * @property {Record<string, number>} options
  */
 
-// --- Afstemning ---
 let activePollId = null;
 
-// --- Oprettelse af HTTP + WebSocket-server ---
 const server = createServer(app);
 
 /** @type {Server} */
@@ -109,7 +118,6 @@ const hangmanNamespace = socketServer.of('/hangman');
 const hangman = initializeHangman(hangmanNamespace);
 const colorGame = initializeColorGame(socketServer, socketUsers);
 
-// --- Forbindelse af Hangman namespace ---
 hangmanNamespace.on('connection', (hangmanSocketRaw) => {
   /** @type {import('./src/games/hangman.js').HangmanSocket} */
   const socket = /** @type {any} */ (hangmanSocketRaw);
@@ -146,7 +154,6 @@ hangmanNamespace.on('connection', (hangmanSocketRaw) => {
   });
 });
 
-// --- Admin online tracking ---
 let onlineAdmins = new Set();
 
 app.set('socketServer', socketServer);
@@ -165,7 +172,6 @@ app.get('/debug/admin-sockets', (req, res) => {
   }
 });
 
-// --- Start server ---
 async function startServer() {
   await initializePollTables();
   const initialPoll = await getActivePoll();
