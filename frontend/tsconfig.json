@@ -1,0 +1,16 @@
+{
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": false,
+    "esModuleInterop": true,
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "types": ["svelte"],
+    "rootDir": "src",
+    "outDir": ".ts-out"
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", ".svelte-kit"]
+}
