@@ -2,8 +2,8 @@
   import Navbar from "../../components/navbar.svelte";
   import Footer from "../../components/footer.svelte";
   import { goto } from '$app/navigation';
-  import { user as storeUser } from '../../stores/user.js';
-  import { setAuthenticationState } from '../../stores/authentication.js';
+  import { user as storeUser } from '../../stores/usersStore.js';
+  import { setAuthenticationState } from '../../stores/authStore.js';
   import apiFetch from '../../lib/api.js';
   import { toast } from "svelte-5-french-toast";
   import { writable } from 'svelte/store';
@@ -42,7 +42,7 @@
 
       if (!responseApiFetch.ok || !data?.token) {
         logger.warn(`Login failed for user "${username}": ${data?.message || 'Unknown error'}`);
-        toast.error(data?.message || 'Log ind fejlede');
+        toast.error(data?.message || 'Login failed');
         return;
       }
 
@@ -51,8 +51,8 @@
       }
 
       storeUser.set({ username });
-      logger.info(`Bruger "${username}" logget ind succesfuldt`);
-      toast.success("Log ind succesfuldt!");
+      logger.info(`User "${username}" logged in successfully`);
+      toast.success("Login successful!");
 
       await toast.promise(
         apiFetch('/api/protected').then(async (res) => {
@@ -66,24 +66,24 @@
           return /** @type {ProtectedResponse} */ (protectedData);
         }),
         {
-          loading: 'Tjekker adgang...',
+          loading: 'Verifying access...',
           /** @param {ProtectedResponse} protectedData */
           success: (protectedData) => {
-            if (typeof window !== 'undefined') {
-              window.location.assign('/profile');
-            } else {
+            try {
               goto('/profile');
+            } catch {
+              if (typeof window !== 'undefined') window.location.assign('/profile');
             }
-            return `Adgang tilladt: Velkommen ${protectedData.username || ''}!`;
+            return `Access granted: Welcome ${protectedData.username || ''}!`;
           },
           /** @param {unknown} error */
           error: (error) => {
             if (error instanceof Error) {
               logger.error({ message: 'Access error', error });
-              return `Adgang forbudt: ${error.message}`;
+              return `Access denied: ${error.message}`;
             } else {
               logger.error({ message: 'Access error', error });
-              return 'Adgang forbudt: Ukendt fejl';
+              return 'Access denied: Unknown error';
             }
           }
         }
@@ -92,10 +92,10 @@
     } catch (error) {
       if (error instanceof Error) {
         logger.error({ message: `Server error during login for user "${username}"`, error });
-        toast.error("Serverfejl: " + error.message);
+        toast.error("Server error: " + error.message);
       } else {
         logger.error({ message: `Server error during login for user "${username}"`, error });
-        toast.error("Serverfejl: Ukendt fejl");
+        toast.error("Server error: Unknown error");
       }
     }
   }
@@ -121,20 +121,20 @@
 <div class="pt-20 min-h-screen flex flex-col justify-between bg-gradient-to-tr p-4 ${$backgroundGradient}">
   <div class="flex-grow flex justify-center items-center">
     <div class="bg-white/20 backdrop-blur-lg rounded-3xl shadow-2xl p-12 w-full max-w-md border border-white/30">
-      <h1 class="text-4xl font-bold text-white text-center mb-4">Log ind</h1>
+      <h1 class="text-4xl font-bold text-white text-center mb-4">Login</h1>
 
       <form on:submit|preventDefault={login}>
         <input
           type="text"
           bind:value={username}
-          placeholder="Brugernavn"
+          placeholder="Username"
           class="w-full mb-4 px-5 py-3 border border-white/40 rounded-xl bg-white/20 text-white"
         />
 
         <input
           type="password"
           bind:value={password}
-          placeholder="Adgangskode"
+          placeholder="Password"
           class="w-full mb-6 px-5 py-3 border border-white/40 rounded-xl bg-white/20 text-white"
         />
 
@@ -142,7 +142,7 @@
           type="submit"
           class="w-full mb-4 bg-purple-500/80 hover:bg-purple-600/90 text-white py-3 rounded-xl shadow-lg hover:shadow-xl transition font-semibold text-lg"
         >
-          Log ind
+          Login
         </button>
       </form>
 

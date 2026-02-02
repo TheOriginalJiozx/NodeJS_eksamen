@@ -1,8 +1,8 @@
 import logger from '../../lib/logger.js';
 import { database } from '../../database.js';
+import { resolveUserByUsername, resolveClientUsernameForVote } from './connectionUtils.js';
 
 /**
- * Attach per-connection event handlers previously inline in socketHandlers.
  * @param {import('socket.io').Socket} socket
  * @param {object} options
  */
@@ -18,16 +18,7 @@ export async function handleConnection(socket, options) {
     socket.on('registerUser', (username) => {
       (async () => {
         try {
-          const [rows] = await database.query('SELECT id, username, role FROM users WHERE username = ?', [username]);
-          const databaseRow = Array.isArray(rows) && rows[0] ? rows[0] : null;
-          const canonical = databaseRow && databaseRow.username ? databaseRow.username : username;
-          const databaseId = databaseRow && databaseRow.id ? String(databaseRow.id) : null;
-          socketUsers[socket.id] = { id: databaseId, username: canonical };
-          const databaseRole = databaseRow && databaseRow.role ? databaseRow.role : null;
-          if (databaseRole && String(databaseRole).toLowerCase() === 'admin' && databaseId) {
-            try { if (typeof socketServer.removeSocketIdFromAllNames === 'function') socketServer.removeSocketIdFromAllNames(socket.id); } catch {};
-            let entry = socketServer.getAdminState && typeof socketServer.getAdminState === 'function' ? null : null;
-          }
+          await resolveUserByUsername(socketUsers, socket.id, username);
         } catch (error) {
           socketUsers[socket.id] = { id: null, username };
           logger.debug({ error }, 'Could not check role during registerUser; user-provided username');
@@ -74,13 +65,11 @@ export async function handleConnection(socket, options) {
         const clientUsername = data && data.username ? String(data.username) : null;
         if (!userId && clientUsername) {
           try {
-            const [rows] = await database.query('SELECT id, username FROM users WHERE username = ?', [clientUsername]);
-            const databaseRow = Array.isArray(rows) && rows[0] ? rows[0] : null;
-            const canonical = databaseRow && databaseRow.username ? databaseRow.username : clientUsername;
-            const databaseId = databaseRow && databaseRow.id ? String(databaseRow.id) : null;
-            socketUsers[socket.id] = { id: databaseId, username: canonical };
-            username = canonical;
-            userId = databaseId ? Number(databaseId) : null;
+            const resolved = await resolveClientUsernameForVote(socketUsers, socket.id, clientUsername);
+            if (resolved) {
+              username = resolved.username;
+              userId = resolved.id ? Number(resolved.id) : null;
+            }
           } catch (error) {
             logger.debug({ error, clientUsername }, 'Could not resolve user by username during vote');
           }

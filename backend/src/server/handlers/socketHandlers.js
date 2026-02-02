@@ -1,5 +1,5 @@
-import attachAdminServerMethods from './utils/adminUtils.js';
-import handleConnection from './handlers/connectionHandlers.js';
+import attachAdminServerMethods from '../utils/adminUtils.js';
+import handleConnection from './connectionHandlers.js';
 
 /**
  * @param {import('socket.io').Server} socketServer
@@ -9,7 +9,6 @@ export function attachSocketHandlers(socketServer, { socketUsers, onlineAdmins, 
   /** @type {Map<string, {username:string, sockets:Set<string>} >} */
   const adminSocketMap = new Map();
 
-  // attach admin-related methods to socketServer (recompute, move, etc.)
   attachAdminServerMethods(socketServer, { adminSocketMap, onlineAdmins });
 
   socketServer.on('connection', /** @param {import('socket.io').Socket} socket */ async (socket) => {

@@ -1,5 +1,4 @@
-// @ts-nocheck
-import { verifyToken } from '../../src/lib/authentication.js';
+import { verifyToken } from '../lib/auth.js';
 
 /**
  * @param {import('express').Request} req
@@ -20,13 +19,13 @@ export function getTokenFromHeader(req) {
 export function authenticate(req, res, next) {
   try {
     const token = getTokenFromHeader(req);
-    if (!token) return res.status(401).json({ message: 'Token mangler' });
+    if (!token) return res.status(401).json({ message: 'Missing token' });
     const decoded = verifyToken(token);
-    if (!decoded) return res.status(403).json({ message: 'Ugyldig token' });
+    if (!decoded) return res.status(403).json({ message: 'Invalid token' });
     req.user = decoded;
     next();
   } catch {
-    return res.status(401).json({ message: 'Ugyldig token' });
+    return res.status(401).json({ message: 'Invalid token' });
   }
 }
 

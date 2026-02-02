@@ -3,7 +3,7 @@
   import Navbar from '../../components/navbar.svelte';
   import { onMount, onDestroy } from 'svelte';
   import { goto } from '$app/navigation';
-  import { getToken } from '../../stores/authentication.js';
+  import { getToken } from '../../stores/authStore.js';
   import { toast } from "svelte-5-french-toast";
   import { writable } from 'svelte/store';
   import logger from '../../lib/logger.js';
@@ -29,7 +29,7 @@
 
   function scheduleUsernameCheck() {
     usernameAvailable = null;
-    usernameError = username ? 'Kontrollerer brugernavn...' : '';
+    usernameError = username ? 'Checking username...' : '';
     if (usernameTimer) clearTimeout(usernameTimer);
     if (!username) return;
     usernameTimer = setTimeout(async () => {
@@ -40,19 +40,19 @@
           const result = await response.json().catch(() => ({}));
           if (username !== checkValue) return;
           usernameAvailable = !!result.available;
-          if (!result.available) usernameError = 'Brugernavn er allerede taget';
+          if (!result.available) usernameError = 'Username is already in use';
           else usernameError = '';
         }
       } catch (error) {
         logger.debug({ error }, 'signup: scheduleUsernameCheck failed');
-        if (username === checkValue) usernameError = 'Fejl ved kontrol';
+        if (username === checkValue) usernameError = 'Check failed';
       }
     }, 500);
   }
 
   function scheduleEmailCheck() {
     emailAvailable = null;
-    emailError = email ? 'Kontrollerer email...' : '';
+    emailError = email ? 'Checking email...' : '';
     if (emailTimer) clearTimeout(emailTimer);
     if (!email) return;
     emailTimer = setTimeout(async () => {
@@ -63,12 +63,12 @@
           const result = await response.json().catch(() => ({}));
           if (email !== checkValue) return;
           emailAvailable = !!result.available;
-          if (!result.available) emailError = 'E-mail er allerede i brug';
+          if (!result.available) emailError = 'Email is already in use';
           else emailError = '';
         }
       } catch (error) {
         logger.debug({ error }, 'signup: scheduleEmailCheck failed');
-        if (email === checkValue) emailError = 'Fejl ved kontrol';
+        if (email === checkValue) emailError = 'Check failed';
       }
     }, 500);
   }
@@ -82,46 +82,10 @@
     }
 
     if (password_confirm.length === 0 || password !== password_confirm) {
-      passwordError = 'Adgangskoder matcher ikke';
+      passwordError = 'Passwords do not match';
       return;
     }
-
-    try {
-      if (usernameAvailable === false) {
-        usernameError = 'Brugernavn er allerede taget';
-        return;
-      } else if (usernameAvailable === null) {
-        const response = await apiFetch(`/api/users/check-username?username=${encodeURIComponent(username)}`);
-        if (response.ok) {
-          const result = await response.json().catch(() => ({}));
-          if (!result.available) {
-            usernameError = 'Brugernavn er allerede taget';
-            usernameAvailable = false;
-            return;
-          }
-          usernameAvailable = true;
-        }
-      }
-
-      if (emailAvailable === false) {
-        emailError = 'E-mail er allerede i brug';
-        return;
-      } else if (emailAvailable === null) {
-        const response = await apiFetch(`/api/users/check-email?email=${encodeURIComponent(email)}`);
-        if (response.ok) {
-          const result = await response.json().catch(() => ({}));
-          if (!result.available) {
-            emailError = 'E-mail er allerede i brug';
-            emailAvailable = false;
-            return;
-          }
-          emailAvailable = true;
-        }
-      }
-    } catch (checkError) {
-      logger.debug({ checkError }, 'signup: availability checks failed (continuing to registration)');
-    }
-    
+        
     try {
       logger.debug(`Attempting to register user: "${username}"`);
 
@@ -138,18 +102,18 @@
       if (!responseApiFetch.ok) {
         logger.warn(`Registration failed for "${username}": ${data?.message || 'Unknown error'}`);
         const message = String(data?.message || '').toLowerCase();
-        if (responseApiFetch.status === 409 || message.includes('brugernavn') || message.includes('brugernav')) {
-          usernameError = data?.message || 'Brugernavn er allerede taget';
+        if (responseApiFetch.status === 409 || message.includes('username') || message.includes('username')) {
+          usernameError = data?.message || 'Username is already in use';
           return;
         }
         if (responseApiFetch.status === 409 || message.includes('email') || message.includes('e-mail')) {
-          emailError = data?.message || 'E-mail er allerede i brug';
+          emailError = data?.message || 'E-mail is already in use';
           return;
         }
-        toast.error(data?.message || "Registrering mislykkedes!");
+        toast.error(data?.message || "Registration failed!");
       } else {
         logger.info(`Registration succeeded for "${username}"`);
-        toast.success(data?.message || "Registrering lykkedes!");
+        toast.success(data?.message || "Registration succeeded!");
         username = '';
         email = '';
         password = '';
@@ -164,8 +128,8 @@
         logger.error({ message: `Registration error for user "${username}"`, error });
         toast.error(error.message);
       } else {
-        logger.error({ message: `Registreringsfejl for bruger "${username}"`, error });
-        toast.error("Registrering mislykkedes!");
+        logger.error({ message: `Registration error for user "${username}"`, error });
+        toast.error("Registration failed!");
       }
     }
   }
@@ -205,15 +169,15 @@
 <div class="pt-20 min-h-screen flex flex-col justify-between bg-gradient-to-tr p-4 ${$backgroundGradient}">
   <div class="flex-grow flex items-center justify-center">
     <div class="bg-white/20 backdrop-blur-lg rounded-3xl shadow-2xl p-12 w-full max-w-md border border-white/30 animate-fade-in">
-      <h1 class="text-4xl font-bold text-white text-center mb-4 drop-shadow-lg">Opret bruger</h1>
-      <p class="text-center text-white/80 mb-8">Indtast dine oplysninger for at oprette en konto</p>
+      <h1 class="text-4xl font-bold text-white text-center mb-4 drop-shadow-lg">Signup</h1>
+      <p class="text-center text-white/80 mb-8">Enter your information to create an account</p>
 
       <form on:submit|preventDefault={signup}>
         <div class="mb-4">
           <input
             type="text"
             bind:value={username}
-            placeholder="Brugernavn"
+            placeholder="Username"
             on:input={() => { scheduleUsernameCheck(); }}
             class="w-full px-5 py-3 border border-white/40 rounded-xl bg-white/20 placeholder-white/70 text-white focus:outline-none focus:ring-2 focus:ring-green-300 transition"
           />
@@ -239,7 +203,7 @@
           <input
             type="password"
             bind:value={password}
-            placeholder="Adgangskode"
+            placeholder="Password"
             on:input={() => { passwordError = getPasswordError(password) || ''; }}
             on:blur={() => {
               passwordError = getPasswordError(password) || '';
@@ -255,7 +219,7 @@
           <input
             type="password"
             bind:value={password_confirm}
-            placeholder="Gentage adgangskode"
+            placeholder="Confirm password"
             class="w-full px-5 py-3 border border-white/40 rounded-xl bg-white/20 placeholder-white/70 text-white focus:outline-none focus:ring-2 focus:ring-green-300 transition"
           />
         </div>
@@ -265,11 +229,11 @@
           class="w-full mb-4 bg-red-500/80 hover:bg-red-600/90 text-white py-3 rounded-xl shadow-lg hover:shadow-xl transition font-semibold text-lg disabled:opacity-50 disabled:cursor-not-allowed"
           disabled={!username || !email || !password || password_confirm.length === 0 || password !== password_confirm || usernameAvailable !== true || emailAvailable !== true || !!passwordError}
         >
-          Opret bruger
+          Signup
         </button>
 
         {#if password_confirm.length > 0 && password !== password_confirm}
-          <p class="text-red-400 text-sm mt-2">Adgangskoderne matcher ikke.</p>
+          <p class="text-red-400 text-sm mt-2">Passwords do not match.</p>
         {/if}
       </form>
       

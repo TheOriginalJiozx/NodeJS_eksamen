@@ -1,18 +1,19 @@
 <script>
   import { onMount } from 'svelte';
   import { toast } from 'svelte-5-french-toast';
-  import Navbar from "../../components/navbar.svelte";
-  import Footer from "../../components/footer.svelte";
+  import Navbar from '../../components/navbar.svelte';
+  import Footer from '../../components/footer.svelte';
+  import ProfileHeader from './ProfileHeader.svelte';
+  import ProfileActions from './ProfileActions.svelte';
   import { goto } from '$app/navigation';
   import { writable } from 'svelte/store';
   import logger from '../../lib/logger.js';
-  import { user as storeUser } from '../../stores/user.js';
-  import { io } from 'socket.io-client';
+  import { user as storeUser } from '../../stores/usersStore.js';
   import { env as PUBLIC_ENV } from '$env/dynamic/public';
   const PUBLIC_SERVER_URL = PUBLIC_ENV.PUBLIC_SERVER_URL;
-  import apiFetch from '../../lib/api.js';
-  import { getToken, clearAuthenticationState } from '../../stores/authentication.js';
   import { changeColor } from '../../lib/changeColor.js';
+  import { initializeProfile, toggleAdminOnline as clientToggleAdminOnline } from './profileClient.js';
+  import { exportMyData as clientExportMyData, deleteMyAccount as clientDeleteMyAccount } from './profileData.js';
 
   /** @type {import('svelte/store').Writable<string>} */
   const backgroundGradient = writable('from-indigo-700 via-purple-700 to-fuchsia-600');
@@ -26,70 +27,15 @@
   let adminOnlineMessage = '';
   /** @type {import('socket.io-client').Socket | undefined} */
   let socket;
+  let safeEmit = () => {};
 
   /**
    * @param {string} event
    * @param {any} payload
    */
-  function safeEmit(event, payload) {
-    try {
-        if (socket && typeof socket.emit === 'function' && socket.connected) {
-        socket.emit(event, payload);
-        logger.debug({ event, payload }, 'safeEmit: emitted immediately');
-        return;
-      }
-      const doIt = () => {
-        try {
-            if (socket && typeof socket.emit === 'function') {
-            socket.emit(event, payload);
-            logger.debug({ event, payload }, 'safeEmit: emitted after connection');
-          } else {
-            logger.debug({ event }, 'safeEmit: socket not ready for emit');
-          }
-        } catch (error) {
-          logger.debug({ message: error }, 'safeEmit: emit failed');
-        }
-      };
-      if (socket) {
-        socket.once('connect', doIt);
-      } else {
-        socket = io(PUBLIC_SERVER_URL);
-        socket.once('connect', doIt);
-      }
-    } catch (error) {
-      logger.debug({ error }, 'safeEmit unexpected error');
-    }
-  }
-
   onMount(async () => {
-    try {
-      const token = getToken();
-      if (!token) {
-        toast.error('Du har ikke adgang. Log venligst ind igen.');
-        clearAuthenticationState();
-        goto('/login');
-        return;
-      }
-      const responseApiFetch = await apiFetch('/api/auth/me');
-
-      if (!responseApiFetch.ok) {
-        toast.error('Du har ikke adgang. Log venligst ind igen.');
-        localStorage.removeItem('jwt');
-        localStorage.removeItem('username');
-        goto('/login');
-        return;
-      }
-
-      const result = await responseApiFetch.json();
-      userData = result;
-        if (result.role) {
-          userData.role = result.role;
-          localStorage.setItem('role', result.role);
-        }
-
-      socket = io(PUBLIC_SERVER_URL);
-      if (socket && typeof socket.on === 'function') {
-        socket.on('adminOnlineMessage', (data) => {
+    const res = await initializeProfile(PUBLIC_SERVER_URL, {
+      onAdminMessage: (data) => {
         logger.debug({ data }, 'CLIENT received adminOnlineMessage');
         adminOnlineMessage = data.message || '';
         if (Array.isArray(data.admins)) {
@@ -97,286 +43,64 @@
           isAdminOnline = nowOnline;
           localStorage.setItem('isAdminOnline', nowOnline ? 'true' : 'false');
         }
-        });
-        socket.on('adminOnlineAcknowledgement', (acknowledgement) => {
-            try {
-            logger.debug({ acknowledgement }, 'CLIENT received adminOnlineAck');
-            if (acknowledgement && acknowledgement.username && String(acknowledgement.username).toLowerCase() === String(userData.username).toLowerCase()) {
-              isAdminOnline = !!acknowledgement.online;
-              localStorage.setItem('isAdminOnline', isAdminOnline ? 'true' : 'false');
-            }
-          } catch (error) {
-            logger.debug({ error }, 'adminOnlineAck handling failed in client profile');
+      },
+      onAdminAck: (ack) => {
+        try {
+          logger.debug({ ack }, 'CLIENT received adminOnlineAck');
+          if (
+            ack &&
+            ack.username &&
+            String(ack.username).toLowerCase() === String(userData.username).toLowerCase()
+          ) {
+            isAdminOnline = !!ack.online;
+            localStorage.setItem('isAdminOnline', isAdminOnline ? 'true' : 'false');
           }
-        });
-      }
-
-      try {
-        const emitRegister = () => {
-          try {
-            const nameToRegister = userData && userData.username ? userData.username : (typeof window !== 'undefined' ? localStorage.getItem('username') : null);
-            if (nameToRegister) {
-              safeEmit('registerUser', nameToRegister);
-              logger.debug({ username: nameToRegister }, 'CLIENT EMIT registerUser (profile)');
-            }
-          } catch (error) {
-            logger.debug({ error }, 'Could not emit registerUser from profile');
-          }
-        };
-        if (socket && socket.connected) emitRegister();
-        else if (socket) socket.once('connect', emitRegister);
-      } catch (error) {
-        logger.debug({ error }, 'registerUser scheduling failed in profile');
-      }
-
-      if (userData.role && String(userData.role).toLowerCase() === 'admin') {
-        isAdminOnline = true;
-        logger.debug({ username: userData.username }, 'CLIENT: preparing emit of adminOnline');
-        const emitOnline = () => {
-          logger.debug({ username: userData.username }, 'CLIENT EMIT adminOnline');
-          safeEmit('adminOnline', { username: userData.username, online: true });
-          logger.debug('CLIENT EMIT done');
-        };
-        if (socket?.connected) {
-          emitOnline();
-        } else if (socket) {
-          socket.once('connect', emitOnline);
+        } catch (error) {
+          logger.debug({ error }, 'adminOnlineAck handling failed in client profile');
         }
-      }
+      },
+    });
 
-    } catch (error) {
-      logger.error({ error }, 'Server error fetching profile');
-      toast.error('Serverfejl');
-      localStorage.removeItem('jwt');
-      localStorage.removeItem('username');
-      goto('/login');
+    if (!res) return;
+    userData = res.userData;
+    if (res.userData.role) {
+      userData.role = res.userData.role;
+      localStorage.setItem('role', res.userData.role);
     }
+    socket = res.socket;
+    safeEmit = res.safeEmit || (() => {});
   });
 
   async function exportMyData() {
-    let serverFilename = null;
-    try {
-      const responseApiFetch2 = await apiFetch('/api/users/me/export');
-      if (!responseApiFetch2.ok) {
-        const error = await responseApiFetch2.json().catch(() => ({}));
-        toast.error(error?.message || 'Kunne ikke eksportere data');
-        return false;
-      }
-      const exportJson = await responseApiFetch2.json();
-      try {
-          const token = getToken();
-          const backupResult = await fetch('/api/users/backups', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-            body: JSON.stringify(exportJson)
-          });
-        if (!backupResult.ok) {
-          logger.error({ status: backupResult.status }, 'Backup endpoint responded with error');
-          const errorJson = await backupResult.json().catch(() => ({}));
-          toast.error(errorJson?.message || 'Kunne ikke gemme backup på serveren');
-          return false;
-        }
-        const backupJson = await backupResult.json().catch(() => ({}));
-        let serverPath = backupJson && backupJson.path ? backupJson.path : null;
-        if (serverPath) {
-          const index1 = serverPath.lastIndexOf('/');
-          const index2 = serverPath.lastIndexOf('\\');
-          const index = Math.max(index1, index2);
-          serverFilename = index >= 0 ? serverPath.slice(index + 1) : serverPath;
-        }
-      } catch (error) {
-        logger.error({ error }, 'Fejl ved kald af backup endpoint');
-        toast.error('Kunne ikke gemme backup på serveren');
-        return false;
-      }
-
-      const blob = new Blob([JSON.stringify(exportJson, null, 2)], {
-        type: 'application/json'
-      });
-
-      const filename = `${userData.username}-export.json`;
-      const navigatorAny = /** @type {any} */ (window.navigator);
-      if (navigatorAny && typeof navigatorAny.msSaveOrOpenBlob === 'function') {
-        try {
-          navigatorAny.msSaveOrOpenBlob(blob, filename);
-          toast.success('Data exported');
-          return true;
-        } catch (error) {
-          logger.error({ error }, 'msSaveOrOpenBlob failed');
-          toast.error('Could not export data');
-          return false;
-        }
-      }
-
-      const url = URL.createObjectURL(blob);
-      const downloadAnchor = document.createElement('a');
-      downloadAnchor.style.display = 'none';
-      downloadAnchor.setAttribute('aria-hidden', 'true');
-      downloadAnchor.href = url;
-      downloadAnchor.download = filename;
-      let downloadStarted = false;
-      try {
-        document.body.appendChild(downloadAnchor);
-        downloadAnchor.click();
-        downloadStarted = true;
-      } catch (error) {
-        logger.error({ error }, 'Could not trigger download via anchor');
-        downloadStarted = false;
-      } finally {
-        try {
-          downloadAnchor.remove();
-        } catch (error) {
-          logger.error({ error }, 'Could not remove temporary download anchor');
-        }
-        try {
-          URL.revokeObjectURL(url);
-        } catch (error) {
-          logger.error({ error }, 'Could not revoke object URL after download');
-        }
-      }
-
-      if (downloadStarted) {
-        toast.success('Data eksporteret');
-        return serverFilename || true;
-      }
-
-      toast.error('Could not start download');
-      return false;
-    } catch (error) {
-      logger.error({ error }, 'Error exporting');
-      toast.error('Server error exporting');
-      return false;
-    }
+    return await clientExportMyData(userData.username);
   }
 
   async function deleteMyAccount() {
-    if (!confirm('Er du sikker på du vil slette din konto? Dette kan ikke fortrydes.')) return;
-    try {
-      const exported = await exportMyData();
-      let exportFilenameToSend = null;
-      if (exported === false) {
-        toast.error('Eksport mislykkedes. Kontoen blev ikke slettet. Prøv igen.');
-        return;
-      } else if (typeof exported === 'string') {
-        exportFilenameToSend = exported;
-      }
-
-      const responseApiFetch3 = await apiFetch('/api/users/me', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          confirm: true,
-          exportFilename: exportFilenameToSend
-        })
-      });
-
-      const data = await responseApiFetch3.json().catch(() => ({}));
-
-      if (responseApiFetch3.ok || responseApiFetch3.status === 404) {
-        if (responseApiFetch3.ok) toast.success('Konto slettet');
-        else toast.info('Konto ikke fundet. Du bliver logget ud.');
-
-        try {
-          clearAuthenticationState();
-        } catch (error) {
-          logger.debug({ error }, 'deleteMyAccount: clearAuthenticationState failed during client-side cleanup');
-        }
-
-        localStorage.removeItem('jwt');
-        localStorage.removeItem('username');
-        localStorage.removeItem('role');
-
-        storeUser.set(null);
-
-        goto('/login');
-        
-        return;
-      }
-
-      toast.error(data?.message || 'Could not delete account');
-    } catch (error) {
-      logger.error({ error }, 'Error deleting account');
-      toast.error('Server error deleting account');
-    }
+    return await clientDeleteMyAccount(userData.username);
   }
 
   function toggleAdminOnline() {
     isAdminOnline = !isAdminOnline;
     localStorage.setItem('isAdminOnline', isAdminOnline ? 'true' : 'false');
-    const usernameToSend = (userData && userData.username) || (typeof window !== 'undefined' ? localStorage.getItem('username') : null);
-
-    const doEmit = () => {
-      try {
-        if (!usernameToSend) return logger.debug('toggleAdminOnline: no username available');
-        if (!socket || typeof socket.emit !== 'function') return logger.debug('toggleAdminOnline: socket not available');
-
-        if (isAdminOnline) {
-          try {
-            safeEmit('registerUser', usernameToSend);
-            logger.debug({ username: usernameToSend }, 'CLIENT EMIT registerUser (fra toggle -> ON)');
-          } catch (error) {
-            logger.debug({ error }, 'toggleAdminOnline: registerUser emit failed');
-          }
-
-          setTimeout(() => {
-            try {
-              safeEmit('adminOnline', { username: usernameToSend, online: true });
-              logger.debug({ username: usernameToSend, online: true }, 'CLIENT EMIT adminOnline ON from profile toggle');
-            } catch (error) {
-              logger.debug({ error }, 'toggleAdminOnline: adminOnline emit failed (ON)');
-            }
-          }, 80);
-        } else {
-          try {
-            safeEmit('adminOnline', { username: usernameToSend, online: false });
-            logger.debug({ username: usernameToSend, online: false }, 'CLIENT EMIT adminOnline OFF from profile toggle');
-          } catch (error) {
-            logger.debug({ error }, 'toggleAdminOnline: adminOnline emit failed (OFF)');
-          }
-        }
-      } catch (error) {
-        logger.debug({ error }, 'toggleAdminOnline: unexpected error in profile');
-      }
-    };
-
-    if (socket && socket.connected) doEmit();
-    else if (socket) socket.once('connect', doEmit);
+    clientToggleAdminOnline(safeEmit, userData.username, isAdminOnline);
   }
 </script>
 
 <Navbar />
 
-<div class="pt-20 min-h-screen flex flex-col justify-between bg-gradient-to-tr p-4 ${$backgroundGradient}">
+<div
+  class="pt-20 min-h-screen flex flex-col justify-between bg-gradient-to-tr p-4 ${$backgroundGradient}"
+>
   <div class="flex-grow flex justify-center items-center">
-    <div class="bg-white/20 backdrop-blur-lg rounded-3xl shadow-2xl p-12 w-full max-w-md border border-white/30">
-        <h1 class="text-4xl font-bold text-white text-center mb-4">Profil</h1>
-        <p class="text-white text-center text-lg">Velkommen, {userData.username}!</p>
-        <p class="text-white text-center mt-2">Dette er din beskyttede profilside.</p>
-        <button on:click={() => changeColor(backgroundGradient)}
-            class="mt-4 bg-white/30 hover:bg-white/50
-            text-white font-semibold py-2
-            px-4 rounded-xl transition">
-        Change background color
-      </button>
+      <ProfileHeader {userData} onChangeBackground={() => changeColor(backgroundGradient)} />
 
-        <div class="mt-6 space-y-3">
-          <a href="/settings" class="w-full block text-center bg-white/30 hover:bg-white/50 text-white font-semibold py-2 px-4 rounded-xl transition">Åbn indstillinger</a>
-
-          {#if userData.role && String(userData.role).toLowerCase() === 'admin'}
-            <button
-              class="w-full bg-yellow-500 hover:bg-yellow-600 text-white font-semibold py-2 px-4 rounded-xl transition mb-4"
-              on:click={toggleAdminOnline}
-            >
-              {isAdminOnline ? 'Vis admin offline status' : 'Vis admin online status'}
-            </button>
-          {/if}
-          <div class="mt-4 space-y-2">
-            <button class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-xl" on:click={exportMyData}>Eksportér mine data</button>
-            <button class="w-full bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-xl" on:click={deleteMyAccount}>Slet min konto</button>
-          </div>
-        </div>
+      <ProfileActions
+        {userData}
+        {isAdminOnline}
+        {toggleAdminOnline}
+        exportMyData={exportMyData}
+        deleteMyAccount={deleteMyAccount}
+      />
     </div>
+    <Footer />
   </div>
-
-  <Footer />
-</div>

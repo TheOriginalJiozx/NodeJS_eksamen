@@ -1,7 +1,7 @@
 import { io } from 'socket.io-client';
 import { toast } from 'svelte-5-french-toast';
 import apiFetch from '../../../lib/api.js';
-import { getToken, clearAuthenticationState } from '../../../stores/authentication.js';
+import { getToken, clearAuthenticationState } from '../../../stores/authStore.js';
 import logger from '../../../lib/logger.js';
 import attachHangmanHandlers from './hangmanHandlers.js';
 import createHangmanClient from './hangmanClient.js';

@@ -7,7 +7,7 @@
   import { env as PUBLIC_ENV } from '$env/dynamic/public';
   const PUBLIC_SERVER_URL = PUBLIC_ENV.PUBLIC_SERVER_URL;
   import { toast } from 'svelte-5-french-toast';
-  import { user } from '../stores/user.js';
+  import { user } from '../stores/usersStore.js';
   import logger from '../lib/logger.js';
   import { changeColor } from '../lib/changeColor.js';
 

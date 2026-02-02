@@ -9,7 +9,7 @@
   import Footer from '../../components/footer.svelte';
   import { goto } from '$app/navigation';
   import apiFetch from '../../lib/api.js';
-  import { getToken, clearAuthenticationState } from '../../stores/authentication.js';
+  import { getToken, clearAuthenticationState } from '../../stores/authStore.js';
   import { changeColor } from '../../lib/changeColor.js';
 
   /** @type {import('svelte/store').Writable<string>} */

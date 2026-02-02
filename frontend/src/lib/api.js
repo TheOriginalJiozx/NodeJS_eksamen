@@ -1,5 +1,5 @@
 import { get } from 'svelte/store';
-import { authenticate, clearAuthenticationState } from '../stores/authentication.js';
+import { authenticate, clearAuthenticationState } from '../stores/authStore.js';
 import { goto } from '$app/navigation';
 import logger from './logger.js';
 

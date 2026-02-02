@@ -1,7 +1,7 @@
 <script>
-  import { user } from '../stores/user.js';
+  import { user } from '../stores/usersStore.js';
   import apiFetch from '../lib/api.js';
-  import { clearAuthenticationState } from '../stores/authentication.js';
+  import { clearAuthenticationState } from '../stores/authStore.js';
   import { goto } from '$app/navigation';
   import { toast } from 'svelte-5-french-toast';
   import logger from '../lib/logger.js';
@@ -9,7 +9,7 @@
   import { env as PUBLIC_ENV } from '$env/dynamic/public';
   const PUBLIC_SERVER_URL = PUBLIC_ENV.PUBLIC_SERVER_URL;
 
-  export let links = [{ href: '/', label: 'Hjem' }];
+  export let links = [{ href: '/', label: 'Home' }];
 
   $: currentUser = $user;
 
@@ -42,7 +42,7 @@
     }
     clearAuthenticationState();
     user.set(null);
-    toast.success("Du er nu logget ud");
+    toast.success("You have now been logged out.");
     if (typeof window !== 'undefined') {
       try {
         localStorage.removeItem('adminOnlineList');
@@ -72,18 +72,18 @@
         {/each}
 
         {#if currentUser}
-          <span class="text-white">Hej, {currentUser.username}</span>
-          <a href="/profile" class="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 transition">Profil</a>
-          <a href="/games" class="bg-yellow-500 text-white px-3 py-1 rounded hover:bg-yellow-600 transition">Spil</a>
+          <span class="text-white">Hello, {currentUser.username}</span>
+          <a href="/profile" class="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 transition">Profile</a>
+          <a href="/games" class="bg-yellow-500 text-white px-3 py-1 rounded hover:bg-yellow-600 transition">Games</a>
           <button
             class="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600 transition"
             on:click={logout}
           >
-            Log ud
+            Logout
           </button>
         {:else}
-          <a href="/login" class="bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600 transition">Log ind</a>
-          <a href="/signup" class="bg-purple-500 text-white px-3 py-1 rounded hover:bg-purple-600 transition">Opret bruger</a>
+          <a href="/login" class="bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600 transition">Login</a>
+          <a href="/signup" class="bg-purple-500 text-white px-3 py-1 rounded hover:bg-purple-600 transition">Signup</a>
         {/if}
       </div>
     </div>

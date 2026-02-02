@@ -249,7 +249,6 @@ export function initializeHangman(io) {
       }
     });
 
-    // attach chat and requestStatus handlers from separate module
     const cleanupChat = attachHangmanChatHandlers(io, socket, { buildStatus, broadcastStatus });
 
     socket.on('disconnect', async () => {

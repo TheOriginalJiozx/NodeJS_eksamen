@@ -1,5 +1,5 @@
 import { writable, get } from 'svelte/store';
-import { user as userStore } from './user.js';
+import { user as userStore } from './usersStore.js';
 import logger from '../lib/logger.js';
 
 let initial = null;

@@ -1,9 +1,8 @@
-// @ts-nocheck
 import express from 'express';
-import { hashPassword, createUser, getUserByUsername, verifyPassword, generateToken, verifyToken } from '../../src/lib/authentication.js';
-import logger from '../../src/lib/logger.js';
-import { database } from '../../src/database.js';
-import authenticate from '../../src/middleware/authenticate.js';
+import { hashPassword, createUser, getUserByUsername, verifyPassword, generateToken, verifyToken } from '../lib/auth.js';
+import logger from '../lib/logger.js';
+import { database } from '../database.js';
+import authenticate from '../middleware/authenticate.js';
 
 const router = express.Router();
 const API = '/api';
@@ -15,9 +14,9 @@ router.post(`${API}/auth/register`, async (req, res) => {
     const hashedPassword = await hashPassword(password);
     const userId = await createUser(username, email, hashedPassword);
 
-    res.status(201).json({ message: 'Oprettet bruger', user: { id: userId, username, email } });
+    res.status(201).json({ message: 'User has been created', user: { id: userId, username, email } });
   } catch (error) {
-    res.status(500).json({ message: error instanceof Error ? error.message : 'Fejl ved oprettelse af bruger' });
+    res.status(500).json({ message: error instanceof Error ? error.message : 'Error during registration' });
   }
 });
 
@@ -25,10 +24,10 @@ router.post(`${API}/auth/login`, async (req, res) => {
   try {
     const { username, password } = req.body;
     const user = await getUserByUsername(username);
-    if (!user) return res.status(404).json({ message: 'Bruger findes ikke' });
+    if (!user) return res.status(404).json({ message: 'User does not exist' });
 
     const match = await verifyPassword(password, user.password);
-    if (!match) return res.status(401).json({ message: 'Forkert adgangskode' });
+    if (!match) return res.status(401).json({ message: 'Wrong password' });
 
     try {
       const [databaseRow] = await database.query('SELECT DATABASE() AS current_database');
@@ -41,7 +40,7 @@ router.post(`${API}/auth/login`, async (req, res) => {
         const message = innerError && innerError.message ? String(innerError.message) : '';
         const code = innerError && innerError.code ? String(innerError.code) : '';
         logger.warn({ errorMessage: message, errCode: code, userId: user.id }, 'Could not update isOnline — attempting fallback update');
-        if (message.includes('Ukendt kolonne') || code === 'ER_BAD_FIELD_ERROR') {
+        if (message.includes('Unknown column') || code === 'ER_BAD_FIELD_ERROR') {
           await database.query('UPDATE users SET last_login = NOW(6) WHERE id = ?', [user.id]);
         } else {
           throw innerError;
@@ -66,16 +65,16 @@ router.post(`${API}/auth/login`, async (req, res) => {
       }
     }
 
-    res.status(200).json({ message: 'Log ind succes', token, role: user.role });
+    res.status(200).json({ message: 'Login was successful', token, role: user.role });
   } catch (error) {
-    res.status(500).json({ message: error instanceof Error ? error.message : 'Login fejlede' });
+    res.status(500).json({ message: error instanceof Error ? error.message : 'Login failed' });
   }
 });
 
 router.get(`${API}/auth/me`, authenticate, async (req, res) => {
   try {
     const user = await getUserByUsername(req.user.username);
-    if (!user) return res.status(404).json({ message: 'Bruger findes ikke' });
+    if (!user) return res.status(404).json({ message: 'User does not exist' });
 
     const [rows] = await database.query('SELECT username_changed FROM users WHERE id = ?', [user.id]);
     const username_changed = rows && rows[0] ? !!rows[0].username_changed : false;
@@ -83,7 +82,7 @@ router.get(`${API}/auth/me`, authenticate, async (req, res) => {
     res.status(200).json({ id: user.id, username: user.username, email: user.email, username_changed, role: user.role });
   } catch (error) {
     logger.error({ error }, 'Error in /api/auth/me');
-    res.status(500).json({ message: 'Fejl ved hentning af profil' });
+    res.status(500).json({ message: 'Error during fetching profile' });
   }
 });
 
@@ -164,7 +163,7 @@ router.post(`${API}/auth/logout`, async (req, res) => {
     return res.status(200).json({ success: true });
   } catch (error) {
     logger.error({ error }, 'Error handling logout');
-    return res.status(500).json({ success: false, message: error instanceof Error ? error.message : 'Fejl ved behandling af logout' });
+    return res.status(500).json({ success: false, message: error instanceof Error ? error.message : 'Error during logout' });
   }
 });
 

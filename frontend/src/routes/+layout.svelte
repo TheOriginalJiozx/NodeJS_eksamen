@@ -7,9 +7,9 @@
   const PUBLIC_SERVER_URL = PUBLIC_ENV.PUBLIC_SERVER_URL;
   import { onMount, onDestroy } from 'svelte';
   import logger from '../lib/logger.js';
-  import { user as storeUser } from '../stores/user.js';
+  import { user as storeUser } from '../stores/usersStore.js';
   import apiFetch from '../lib/api.js';
-  import authentication, { clearAuthenticationState } from '../stores/authentication.js';
+  import authentication, { clearAuthenticationState } from '../stores/authStore.js';
 
   let adminListInitialized = false;
 

@@ -4,13 +4,13 @@
   import { toast } from 'svelte-5-french-toast';
   import Navbar from '../../../components/navbar.svelte';
   import Footer from '../../../components/footer.svelte';
-  import HangmanBoard from './HangmanBoard.svelte';
-  import HangmanControls from './HangmanControls.svelte';
-  import HangmanChat from './HangmanChat.svelte';
+  import HangmanBoard from './hangmanBoard.svelte';
+  import HangmanControls from './hangmanControls.svelte';
+  import HangmanChat from './hangmanChat.svelte';
   import { goto } from '$app/navigation';
   import apiFetch from '../../../lib/api.js';
   import logger from '../../../lib/logger.js';
-  import { getToken, clearAuthenticationState } from '../../../stores/authentication.js';
+  import { getToken, clearAuthenticationState } from '../../../stores/authStore.js';
   import { changeColor } from '../../../lib/changeColor.js';
   import initHangmanLifecycle from './hangmanInit.js';
   import createHangmanActions from './hangmanActions.js';

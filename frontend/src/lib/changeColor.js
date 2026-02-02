@@ -1,4 +1,3 @@
-// @ts-nocheck
 import logger from './logger.js';
 
 const gradients = [

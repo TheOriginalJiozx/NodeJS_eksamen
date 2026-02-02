@@ -1,4 +1,3 @@
-// @ts-nocheck
 export const downloadTokens = new Map();
 export const DOWNLOAD_TTL_MS = 2 * 60 * 1000;
 

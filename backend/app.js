@@ -1,7 +1,7 @@
 import express from 'express';
 import 'dotenv/config';
 import bodyParser from 'body-parser';
-import { verifyToken, getUserByUsername } from './src/lib/authentication.js';
+import { verifyToken, getUserByUsername } from './src/lib/auth.js';
 import logger from './src/lib/logger.js';
 import { errorInfo } from './src/middleware/errorInfo.js';
 import { createServer } from 'http';
@@ -12,8 +12,8 @@ import { initializePollTables } from './src/database_schema.js';
 import { initializeHangman } from './src/games/hangman.js';
 import { initializeColorGame } from './src/games/colorgame.js';
 import usersRouter from './src/routes/usersRouter.js';
-import authenticationRouter from './src/routes/authenticationRouter.js';
-import attachSocketHandlers from './src/server/socketHandlers.js';
+import authRouter from './src/routes/authRouter.js';
+import attachSocketHandlers from './src/server/handlers/socketHandlers.js';
 import { rateLimit } from 'express-rate-limit'
 
 const app = express();
@@ -37,14 +37,14 @@ app.use(limiter)
 function authenticate(req, res, next) {
   try {
     const authenticationHeader = req.headers['authorization'] || '';
-    if (!authenticationHeader || !authenticationHeader.startsWith('Bearer ')) return res.status(401).json({ message: 'Token mangler' });
+    if (!authenticationHeader || !authenticationHeader.startsWith('Bearer ')) return res.status(401).json({ message: 'Missing token' });
     const token = authenticationHeader.split(' ')[1];
     const decoded = verifyToken(token);
-    if (!decoded) return res.status(403).json({ message: 'Ugyldig token' });
+    if (!decoded) return res.status(403).json({ message: 'Invalid token' });
     req.user = decoded;
     next();
   } catch (error) {
-    return res.status(401).json({ message: 'Ugyldig token' });
+    return res.status(401).json({ message: 'Invalid token' });
   }
 }
 
@@ -56,7 +56,7 @@ app.use(cors({
 }));
 
 app.use(usersRouter);
-app.use(authenticationRouter);
+app.use(authRouter);
 
 /**
  * @typedef {Object} User
@@ -68,9 +68,9 @@ app.use(authenticationRouter);
 
 app.get('/api/protected', authenticate, async (req, res) => {
   try {
-    res.status(200).json({ message: `Velkommen ${req.user.username}!`, username: req.user.username });
+    res.status(200).json({ message: `Welcome ${req.user.username}!`, username: req.user.username });
   } catch (errror) {
-    res.status(500).json({ message: 'Fejl ved adgang til beskyttet rute' });
+    res.status(500).json({ message: 'Error accessing protected route' });
   }
 });
 
@@ -84,11 +84,11 @@ app.get('/api/games', async (req, res) => {
     if (!decoded) return res.status(403).json({ message: 'Ugyldig token' });
 
     const user = await getUserByUsername(decoded.username);
-    if (!user) return res.status(404).json({ message: 'Bruger findes ikke' });
+    if (!user) return res.status(404).json({ message: 'User not found' });
 
     res.status(200).json({ id: user.id, username: user.username, email: user.email });
   } catch {
-    res.status(500).json({ message: 'Fejl ved henting af games sessionIden' });
+    res.status(500).json({ message: 'Error fetching games session ID' });
   }
 });
 
