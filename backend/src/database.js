@@ -162,3 +162,15 @@ export async function getUserVote(pollId, userId) {
         return null;
     }
 }
+
+export async function getUserVotesByUsername(username) {
+    try {
+        const connection = await database.getConnection();
+        const [votes] = await connection.execute('SELECT * FROM user_votes WHERE username = ?', [username]);
+        connection.release();
+        return votes || [];
+    } catch (error) {
+        logger.error({ error, username }, 'Error getting votes for user');
+        return [];
+    }
+}

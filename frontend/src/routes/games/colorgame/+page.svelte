@@ -31,7 +31,7 @@
     { name: 'Blue', hex: '#3b82f6' },
     { name: 'Green', hex: '#10b981' },
     { name: 'Yellow', hex: '#facc15' },
-    { name: 'Sort', hex: '#000000' },
+    { name: 'Black', hex: '#000000' },
     { name: 'Gold', hex: '#efbf04' },
     { name: 'Pink', hex: '#ec4899' },
     { name: 'Turquoise', hex: '#06b6d4' },

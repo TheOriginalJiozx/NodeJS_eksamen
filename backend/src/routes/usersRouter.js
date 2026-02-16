@@ -7,7 +7,7 @@ import {
   getUserByEmail
 } from '../lib/auth.js';
 import logger from '../lib/logger.js';
-import { database } from '../database.js';
+import { getUserVotesByUsername } from '../database.js';
 import authenticate from '../middleware/authenticate.js';
 import { handleDeleteUser } from './handlers/deleteUserHandler.js';
 import { getPasswordError } from '../lib/validation.js';
@@ -56,29 +56,6 @@ router.patch(`${API}/users/:username`, authenticate, async (req, res) => {
     const currentUser = await getUserByUsername(oldUsername);
     await changeUsername(oldUsername, newUsername);
 
-    try {
-      if (currentUser && currentUser.role && String(currentUser.role).toLowerCase() === 'admin') {
-        const socketServer = /** @type {any} */ (req.app.get('socketServer'));
-        if (socketServer && typeof socketServer.moveAdminSockets === 'function') {
-          try {
-            socketServer.moveAdminSockets(oldUsername, newUsername);
-          } catch {
-            logger.error({ message: 'Error moving admin sockets' });
-          }
-          try {
-            socketServer.recomputeAdminOnline();
-          } catch (error) {
-            logger.debug(
-              { error, oldUsername, newUsername },
-              'Could not recomputeAdminOnline after username change',
-            );
-          }
-        }
-      }
-    } catch (error) {
-      logger.debug({ error }, 'Error during admin socket move on username change');
-    }
-
     const response = { message: 'Username updated', newUsername };
     if (req.user.username === oldUsername) {
       response.token = generateToken({ username: newUsername });
@@ -124,11 +101,11 @@ router.get(`${API}/users/:username/export`, authenticate, async (req, res) => {
     const user = await getUserByUsername(username);
     if (!user) return res.status(404).json({ message: 'User not found' });
 
-    const [votes] = await database.query('SELECT * FROM user_votes WHERE username = ?', [username]);
+    const votes = await getUserVotesByUsername(username);
 
     const exportObject = {
       user: { id: user.id, username: user.username, email: user.email, role: user.role },
-      votes: votes || [],
+      votes,
     };
 
     res.setHeader('Content-Disposition', `attachment; filename="${username}-export.json"`);

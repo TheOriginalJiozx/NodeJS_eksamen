@@ -17,24 +17,6 @@
    * @returns {Promise<void>}
    */
   async function logout() {
-    const role = typeof window !== 'undefined' ? localStorage.getItem('role') : null;
-    const username = typeof window !== 'undefined' ? localStorage.getItem('username') : null;
-
-    if (role === 'Admin' && username) {
-      try {
-        const globalSocket = typeof window !== 'undefined' ? window.globalSocket : null;
-        if (globalSocket && typeof globalSocket.emit === 'function') {
-          globalSocket.emit('adminOnline', { username, online: false });
-        } else {
-          const socket = socketServer(PUBLIC_SERVER_URL);
-          socket.emit('adminOnline', { username, online: false });
-          socket.disconnect();
-        }
-      } catch (error) {
-        logger.warn({ error: String(error) }, 'Socket error sending adminOnline=false during logout');
-      }
-    }
-
     try {
       await apiFetch('/api/auth/logout', { method: 'POST' });
     } catch (error) {
@@ -44,14 +26,6 @@
     user.set(null);
     toast.success("You have now been logged out.");
     if (typeof window !== 'undefined') {
-      try {
-        localStorage.removeItem('adminOnlineList');
-        localStorage.removeItem('lastWelcomedAdminList');
-      } catch (error) {
-        logger.debug({
-          error: String(error)
-        }, 'navbar: could not clear persistent administrator lists');
-      }
       goto('/login');
     } else {
       goto('/login');

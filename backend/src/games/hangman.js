@@ -18,7 +18,7 @@ export function initializeHangman(io) {
     } catch (error) {
       logger.error({ error }, 'Error logging hangman socket connection');
     }
-    socket.on('set name', (name, cb) => {
+    socket.on('set name', (name, callback) => {
       socket.data = socket.data || {};
       const prev = socket.data.username;
       try {
@@ -34,11 +34,21 @@ export function initializeHangman(io) {
       }
       logger.info({ socketId: socket.id, username: name }, 'Hangman: set name');
       broadcastStatus();
-      if (typeof cb === 'function') cb({ success: true });
+      if (typeof callback === 'function') callback({ success: true });
     });
 
-    socket.on('join', async ({ name, roomId, word } = {}) => {
+    socket.on('join', async ({ name, roomId, word } = {}, ack) => {
       const id = roomId || `room-${Date.now()}`;
+      if (!roomId && (!word || String(word).trim() === '')) {
+        try {
+          socket.emit('gameError', { message: 'Missing word when creating a game' });
+          if (typeof ack === 'function') ack({ success: false, message: 'Missing word' });
+        } catch (error) {
+          logger.debug({ error }, 'Error emitting gameError for missing word');
+        }
+        return;
+      }
+
       const room = getRoom(id);
 
       const username = name || socket.data?.username;
@@ -74,13 +84,14 @@ export function initializeHangman(io) {
 
       socket.join(id);
 
-      if (word) {
+        if (word) {
         room.game = createHangman(word);
         room.creator = username;
         room.number = room.number || rooms.size;
         io.to(id).emit('start', room.game.getGame());
         try {
           socket.emit('joined', { roomId: id });
+          if (typeof ack === 'function') ack({ success: true, roomId: id });
         } catch (error) {
           logger.error({ error }, 'Error emitting joined to creator in hangman join');
         }
@@ -111,11 +122,13 @@ export function initializeHangman(io) {
           room.scores = room.scores;
           if (!room.scores.has(username)) room.scores.set(username, 0);
           socket.emit('score', room.scores.get(username));
+          if (typeof ack === 'function') ack({ success: true, roomId: id });
         } catch (error) {
           logger.error({ error }, 'Error initializing score for rejoin');
         }
       } else {
         socket.emit('joined', { roomId: id });
+        if (typeof ack === 'function') ack({ success: true, roomId: id });
       }
 
       io.to(id).emit('users', { type: 'add', users: Array.from(room.users) });
@@ -147,7 +160,8 @@ export function initializeHangman(io) {
             try {
               if (room.creator === username) {
                 try {
-                  io.to(roomId).emit('roomLeft', { reason: 'creator_left' });
+                  const answer = room && room.game ? room.game.answer : null;
+                  io.to(roomId).emit('roomLeft', { reason: 'creator_left', answer });
                 } catch (error) {
                   logger.error(
                     { error },
@@ -278,7 +292,8 @@ export function initializeHangman(io) {
             } else {
               if (room.creator === username) {
                 try {
-                  io.to(roomId).emit('roomLeft', { reason: 'creator_left' });
+                  const answer = room && room.game ? room.game.answer : null;
+                  io.to(roomId).emit('roomLeft', { reason: 'creator_left', answer });
                 } catch (error) {
                   logger.error({ error }, 'Error emitting roomLeft event in hangman disconnect');
                 }

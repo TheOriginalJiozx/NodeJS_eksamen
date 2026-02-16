@@ -28,12 +28,6 @@
   let changingUsername = false;
   let usernameChanged = false;
 
-  let isAdminOnline = false;
-  let adminOnlineMessage = '';
-  /** @type {import('socket.io-client').Socket | null} */
-  let socket = null;
-  let safeEmit = () => {};
-
   /**
    * @param {string} event
    * @param {any} payload
@@ -47,12 +41,8 @@
       userData.role = res.userData.role;
       localStorage.setItem('role', res.userData.role);
     }
-    socket = res.socket;
-    safeEmit = res.safeEmit || (() => {});
-
     clientSubmitChangePassword = res.submitChangePassword;
     clientSubmitChangeUsername = res.submitChangeUsername;
-    clientToggleAdminOnline = res.toggleAdminOnline;
   });
 
   let clientSubmitChangePassword = null;
@@ -86,7 +76,6 @@
       const result = await clientSubmitChangeUsername(targetUsername, newUsername);
       if (!result || !result.ok) { toast.error(result?.message || 'Could not change username'); return; }
 
-      // success — update local view/state
       const oldUsername = userData.username || localStorage.getItem('username');
       userData.username = newUsername;
       localStorage.setItem('username', newUsername);
@@ -105,12 +94,6 @@
     }
   }
 
-  function toggleAdminOnline() {
-    isAdminOnline = !isAdminOnline;
-    localStorage.setItem('isAdminOnline', isAdminOnline ? 'true' : 'false');
-    const usernameToSend = (userData && userData.username) || (typeof window !== 'undefined' ? localStorage.getItem('username') : null);
-    if (typeof clientToggleAdminOnline === 'function') clientToggleAdminOnline(isAdminOnline, usernameToSend);
-  }
 </script>
 
 <Navbar />
@@ -166,12 +149,6 @@
             </div>
           {/if}
         </div>
-
-        {#if userData.role && String(userData.role).toLowerCase() === 'admin'}
-          <button class="w-full bg-yellow-500 hover:bg-yellow-600 text-white font-semibold py-2 px-4 rounded-xl transition mb-4" on:click={toggleAdminOnline}>
-            {isAdminOnline ? 'Show admin offline status' : 'Show admin online status'}
-          </button>
-        {/if}
       </div>
     </div>
   </div>

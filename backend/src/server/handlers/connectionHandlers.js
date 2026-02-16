@@ -1,19 +1,14 @@
 import logger from '../../lib/logger.js';
 import { database } from '../../database.js';
-import { resolveUserByUsername, resolveClientUsernameForVote } from './connectionUtils.js';
+import { resolveUserByUsername, resolveClientUsernameForVote } from '../utils/connectionUtils.js';
 
 /**
  * @param {import('socket.io').Socket} socket
  * @param {object} options
  */
 export async function handleConnection(socket, options) {
-  const { socketServer, socketUsers, onlineAdmins, colorGame, getActivePollData, recordVote, getActivePollId } = options;
+  const { socketServer, socketUsers, colorGame, getActivePollData, recordVote, getActivePollId } = options;
   try {
-    const count = onlineAdmins.size;
-    let message = '';
-    if (count === 1) message = 'En admin er online';
-    else if (count > 1) message = `${count} admins er online`;
-    socket.emit('adminOnlineMessage', { count, message, admins: Array.from(onlineAdmins) });
 
     socket.on('registerUser', (username) => {
       (async () => {
@@ -123,74 +118,45 @@ export async function handleConnection(socket, options) {
       }
     });
 
-    socket.on('adminOnline', async (data = {}) => {
+    socket.on('admin:getUserVotes', async (data = {}) => {
       try {
-        const { username, online } = data || {};
-        const name = String(username || '').trim();
-        if (!name) return;
-        const rawUserObject = socketUsers[socket.id];
-        const userObject = rawUserObject;
-        let userId = userObject && typeof userObject === 'object' && userObject.id ? String(userObject.id) : null;
+        const requester = socketUsers && socketUsers[socket.id] ? socketUsers[socket.id] : null;
+        const requesterId = requester && requester.id ? Number(requester.id) : null;
 
-        if (online) {
-          if (!userId) {
-            try {
-              const [rows] = await database.query('SELECT id, username, role FROM users WHERE username = ?', [name]);
-              const databaseRow = Array.isArray(rows) && rows[0] ? rows[0] : null;
-              const databaseRole = databaseRow && databaseRow.role ? String(databaseRow.role).toLowerCase() : null;
-              const databaseId = databaseRow && databaseRow.id ? String(databaseRow.id) : null;
-              if (databaseId && databaseRole === 'admin') {
-                userId = databaseId;
-                socketUsers[socket.id] = { id: userId, username: databaseRow.username || name };
-                logger.debug({ socketId: socket.id, username: name, userId }, 'Resolved adminOnline=true from DB for anonymous socket');
-              } else {
-                logger.debug({ socketId: socket.id, username: name, databaseRow: databaseRow }, 'Ignored adminOnline=true: user is not an admin in the database');
-              }
-            } catch (error) {
-              logger.debug({ error, socketId: socket.id, username: name }, 'Database lookup failed while handling adminOnline=true');
-            }
-          }
-
-          if (!userId) {
-            logger.debug({ socketId: socket.id, username: name }, 'Ignored adminOnline=true from anonymous socket');
-          } else {
-            try { if (typeof socketServer.removeSocketIdFromAllNames === 'function') socketServer.removeSocketIdFromAllNames(socket.id); } catch {};
-            let entry = null;
-            try { entry = socketServer.getAdminState && socketServer.getAdminState()[userId]; } catch {}
-            if (!entry) {
-            }
-            try {
-            } catch (err) {}
-          }
-        } else {
-          try {
-            let removedAny = false;
-
-            for (const [mapUserId, entry] of Object.entries(socketServer.getAdminState ? socketServer.getAdminState() : {})) {
-              if (Array.isArray(entry) && entry.includes(socket.id)) {
-                removedAny = true;
-              }
-            }
-
-            if (removedAny) {
-              logger.debug({ socketId: socket.id, username: name, removedAny }, 'adminOnline=false: removed socketId from entry');
-            }
-            try {
-              socket.emit('adminOnlineAck', { success: !!removedAny, username: name, online: false });
-              logger.debug({ socketId: socket.id, username: name, removedAny }, 'Sent adminOnlineAck to requester');
-            } catch (error) {
-              logger.debug({ error, socketId: socket.id, username: name }, 'Failed to send adminOnlineAck to requester');
-            }
-          } catch (error) {
-            logger.debug({ error, data }, 'adminOnline handler error during removal');
-          }
+        if (!requesterId) {
+          socket.emit('admin:error', { message: 'Not authenticated' });
+          return;
         }
 
-        try { if (typeof socketServer.recomputeAdminOnline === 'function') socketServer.recomputeAdminOnline(); } catch (err) {}
+        const [roleRows] = await database.query('SELECT role FROM users WHERE id = ?', [requesterId]);
+        const roleRow = Array.isArray(roleRows) && roleRows[0] ? roleRows[0] : null;
+        const role = roleRow && roleRow.role ? String(roleRow.role) : null;
+
+        if (role !== 'Admin') {
+          socket.emit('admin:error', { message: 'Forbidden' });
+          return;
+        }
+
+        let targetId = null;
+        if (data.userId) targetId = Number(data.userId);
+        else if (data.username) {
+          const [userRows] = await database.query('SELECT id FROM users WHERE username = ?', [data.username]);
+          if (Array.isArray(userRows) && userRows[0] && userRows[0].id) targetId = Number(userRows[0].id);
+        }
+
+        if (!targetId) {
+          socket.emit('admin:error', { message: 'Target user not found' });
+          return;
+        }
+
+        const [votes] = await database.query('SELECT id, poll_id, username, option_name, voted_at, user_id FROM user_votes WHERE user_id = ?', [targetId]);
+        socket.emit('admin:userVotes', { userId: targetId, votes });
       } catch (error) {
-        logger.debug({ error, data }, 'adminOnline trading error');
+        logger.debug({ error }, 'admin:getUserVotes error');
+        socket.emit('admin:error', { message: 'Server error' });
       }
     });
+
   } catch (error) {
     logger.debug({ error }, 'handleConnection failed');
   }

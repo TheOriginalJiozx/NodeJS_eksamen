@@ -18,7 +18,6 @@ import { privateKeyObject, publicKeyObject } from './keys.js';
  * @param {string|null|undefined} input
  * @returns {string|null}
  */
-// Keys are loaded from ./keys.js (privateKeyObject / publicKeyObject)
 
 /**
  * @param {string} username

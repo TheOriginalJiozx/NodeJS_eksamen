@@ -66,21 +66,18 @@ export async function handleDeleteUser(req, res) {
 
         if (socketServer) {
           try {
-            if (typeof (/** @type {any} */ (socketServer).removeAdminByUsername) === 'function') {
-              try {
-                /** @type {any} */ (socketServer).removeAdminByUsername(username);
-              } catch (error) {
-                logger.debug({ error, username }, 'Error removing admin sockets after user deletion');
+            const socketUsersObject = req.app.get('socketUsers');
+            if (socketUsersObject && typeof socketUsersObject === 'object') {
+              for (const sessionId of Object.keys(socketUsersObject)) {
+                try {
+                  const entry = socketUsersObject[sessionId];
+                  const username = entry && typeof entry === 'object' ? entry.username : entry;
+                  if (String(username || '').trim().toLowerCase() === String(username || '').trim().toLowerCase()) delete socketUsersObject[sessionId];
+                } catch (error) {
+                  logger.debug({ error, sessionId, username }, 'Error during socket disconnect on user deletion');
+                }
               }
             }
-            if (typeof (/** @type {any} */ (socketServer).recomputeAdminOnline) === 'function') {
-              try {
-                /** @type {any} */ (socketServer).recomputeAdminOnline();
-              } catch (error) {
-                logger.debug({ error, username }, 'Error recomputing admin online after user deletion');
-              }
-            }
-            socketServer.emit('adminOnline', { username, online: false });
           } catch (error) {
             logger.debug({ error }, 'Error during socket cleanup after user deletion');
           }

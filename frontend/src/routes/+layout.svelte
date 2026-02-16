@@ -2,6 +2,7 @@
   import '../tailwind.css';
   import { afterNavigate } from '$app/navigation';
   import { Toaster } from 'svelte-5-french-toast';
+  import { toast } from 'svelte-5-french-toast';
   import { io } from 'socket.io-client';
   import { env as PUBLIC_ENV } from '$env/dynamic/public';
   const PUBLIC_SERVER_URL = PUBLIC_ENV.PUBLIC_SERVER_URL;
@@ -10,8 +11,6 @@
   import { user as storeUser } from '../stores/usersStore.js';
   import apiFetch from '../lib/api.js';
   import authentication, { clearAuthenticationState } from '../stores/authStore.js';
-
-  let adminListInitialized = false;
 
   /**
    * @param {string} inputString
@@ -28,12 +27,6 @@
     document.title = `Colouriana - ${capitalizeFirstLetter(page)}`;
   });
 
-  let adminOnlineMessage = '';
-
-  let lastAdminCount = 0;
-  let adminListReady = false;
-  /** @type {string[]} */
-  let lastAdminList = [];
   /** @type {any} */
   let globalSocket = null;
   let isAdmin = false;
@@ -42,13 +35,6 @@
     const role = localStorage.getItem('role');
     isGuest = !role || role === 'Guest';
   }
-
-  onMount(() => {
-    adminListReady = false;
-    const role = typeof window !== 'undefined' ? localStorage.getItem('role') : null;
-    isAdmin = role === 'Admin';
-    isGuest = !role || role === 'Guest';
-  });
 
   /** @type {(() => void) | null} */
   let authenticationUnsubscribe = null;
@@ -63,10 +49,6 @@
               : null;
         isAdmin = role === 'Admin';
         const nowGuest = !role || role === 'Guest';
-        if (!value || !value.token || nowGuest) {
-          adminOnlineMessage = '';
-          adminListInitialized = false;
-        }
         isGuest = nowGuest;
       });
     }
@@ -78,59 +60,18 @@
     } catch (error) {
       logger.debug({ error }, 'Error unsubscribing auth-store');
     }
+    try {
+      if (globalSocket) {
+        try { globalSocket.off('adminNotice'); } catch (e) { logger.debug({ e }, 'Error removing adminNotice listener'); }
+        try { globalSocket.disconnect(); } catch (e) { logger.debug({ e }, 'Error disconnecting globalSocket'); }
+      }
+    } catch (error) {
+      logger.debug({ error }, 'Error during layout onDestroy cleanup');
+    }
   });
 
   onMount(() => {
     globalSocket = io(PUBLIC_SERVER_URL);
-    if (typeof window !== 'undefined') {
-      const storedMessage = sessionStorage.getItem('adminOnlineMessage');
-      if (storedMessage) adminOnlineMessage = storedMessage;
-    }
-    globalSocket.on(
-      'adminOnlineMessage',
-      /** @param {{count:number, message?:string, admins?:string[]}} data */ (data) => {
-        logger.debug({ data }, 'DEBUG adminOnlineMessage data');
-        logger.debug({ admins: data.admins }, 'DEBUG admins from server');
-        logger.debug(
-          { adminOnlineList: sessionStorage.getItem('adminOnlineList') },
-          'DEBUG sessionStorage adminOnlineList',
-        );
-        adminListInitialized = true;
-        adminListReady = true;
-        const adminListKey = JSON.stringify(data.admins || []);
-        if (!data.admins || data.admins.length === 0) {
-          adminListInitialized = false;
-          adminOnlineMessage = '';
-          lastAdminList = [];
-          if (typeof window !== 'undefined') localStorage.removeItem('adminOnlineList');
-        } else {
-          adminOnlineMessage = data.message || '';
-          lastAdminList = data.admins;
-          if (typeof window !== 'undefined') {
-            try {
-              localStorage.setItem('adminOnlineList', adminListKey);
-            } catch (error) {
-              logger.error(
-                { error, adminListKey },
-                'Could not save adminOnlineList to localStorage',
-              );
-            }
-          }
-        }
-        adminListReady = true;
-        lastAdminCount = data.count;
-        try {
-          if (typeof window !== 'undefined') {
-            if (adminOnlineMessage)
-              sessionStorage.setItem('adminOnlineMessage', adminOnlineMessage);
-            else sessionStorage.removeItem('adminOnlineMessage');
-          }
-        } catch (error) {
-          logger.debug({ error }, 'Could not update sessionStorage for adminOnlineMessage');
-        }
-      },
-    );
-
     const username = typeof window !== 'undefined' ? localStorage.getItem('username') : null;
     const emitRegisterIfNeeded = () => {
       if (!globalSocket) return;
@@ -154,6 +95,20 @@
         logger.debug({ error }, 'Could not expose globalSocket on window');
       }
     });
+
+    try {
+      globalSocket.on('adminNotice', (payload) => {
+        try {
+          const message = payload && payload.message ? String(payload.message) : '';
+          const from = payload && payload.from ? String(payload.from) : 'admin';
+          if (message) toast.success(`${from}: ${message}`);
+        } catch (error) {
+          logger.debug({ error }, 'adminNotice handler failed');
+        }
+      });
+    } catch (error) {
+      logger.debug({ error }, 'Could not attach adminNotice listener');
+    }
   });
 
   onMount(async () => {
@@ -161,7 +116,7 @@
     const storedName = localStorage.getItem('username');
     if (!storedName) return;
     try {
-      const response = await apiFetch('/api/auth/me');
+      const response = await apiFetch('/api/auth/users/me');
       if (response.ok) {
         const data = await response.json();
         storeUser.set({ username: data.username });
@@ -174,14 +129,6 @@
     }
   });
 </script>
-
-{#if adminListInitialized && adminOnlineMessage && !isGuest}
-  <div
-    class="flex items-center justify-center gap-2 max-w-xl mx-auto bg-blue-600 text-white text-center py-1 px-4 font-semibold text-lg z-[9999] fixed top-4 left-1/2 -translate-x-1/2 rounded-xl shadow-lg"
-  >
-    <span>{adminOnlineMessage}</span>
-  </div>
-{/if}
 
 <slot />
 

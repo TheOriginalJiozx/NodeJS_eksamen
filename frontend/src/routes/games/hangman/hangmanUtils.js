@@ -1,5 +1,4 @@
 /**
- * Return ASCII hangman art for a given game state.
  * @param {object|null} game
  * @returns {string}
  */

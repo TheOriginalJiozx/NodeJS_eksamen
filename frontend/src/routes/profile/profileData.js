@@ -98,7 +98,7 @@ export async function deleteMyAccount(username) {
 
     if (responseApiFetch3.ok || responseApiFetch3.status === 404) {
       if (responseApiFetch3.ok) toast.success('Account deleted successfully.');
-      else toast.info('Account not found. It may have already been deleted.');
+      else toast.success('Account not found. It may have already been deleted.');
 
       try {
         clearAuthenticationState();

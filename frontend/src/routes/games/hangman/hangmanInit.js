@@ -124,7 +124,8 @@ export default async function initHangmanLifecycle(setters) {
       } catch (error) {
         logger.debug({ error }, 'Could not emit leave on unload');
       }
-    };
+    }
+
     try {
       if (typeof window !== 'undefined') {
         window.addEventListener('beforeunload', beforeUnload);

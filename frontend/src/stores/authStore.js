@@ -47,7 +47,6 @@ export function clearAuthenticationState() {
       localStorage.removeItem('jwt');
       localStorage.removeItem('username');
       localStorage.removeItem('role');
-      localStorage.removeItem('adminOnlineList');
     } catch (error) {
       logger.debug({ error }, 'clearAuthenticationState: could not remove some localStorage keys');
     }

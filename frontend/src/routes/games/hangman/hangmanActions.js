@@ -1,4 +1,5 @@
 import logger from '../../../lib/logger.js';
+import { toast } from 'svelte-5-french-toast';
 
 /**
  * @param {() => any} getClient
@@ -26,6 +27,12 @@ export function createHangmanActions(
     const word = String((getHostWord() || '').trim());
     const user = getUserData();
     const name = user && user.username ? user.username : '';
+    if (!word) {
+      try {
+        toast.error('Please supply a word to start the game');
+      } catch (error) {}
+      return;
+    }
     client.start(name, word);
   }
 

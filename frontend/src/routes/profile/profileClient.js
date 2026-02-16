@@ -8,9 +8,8 @@ import { user as storeUser } from '../../stores/usersStore.js';
 
 /**
  * @param {string} serverUrl
- * @param {{ onAdminMessage?: Function, onAdminAck?: Function }} handlers
  */
-export async function initializeProfile(serverUrl, { onAdminMessage, onAdminAck } = {}) {
+export async function initializeProfile(serverUrl) {
   try {
     const token = getToken();
     if (!token) {
@@ -20,7 +19,7 @@ export async function initializeProfile(serverUrl, { onAdminMessage, onAdminAck 
       return null;
     }
 
-    const responseApiFetch = await apiFetch('/api/auth/me');
+    const responseApiFetch = await apiFetch('/api/auth/users/me');
     if (!responseApiFetch.ok) {
       toast.error('You do not have access. Please log in again.');
       localStorage.removeItem('jwt');
@@ -32,23 +31,6 @@ export async function initializeProfile(serverUrl, { onAdminMessage, onAdminAck 
     const result = await responseApiFetch.json();
 
     const socket = io(serverUrl);
-
-    if (socket && typeof socket.on === 'function') {
-      socket.on('adminOnlineMessage', (data) => {
-        try {
-          if (typeof onAdminMessage === 'function') onAdminMessage(data);
-        } catch (e) {
-          logger.debug({ e }, 'onAdminMessage callback failed');
-        }
-      });
-      socket.on('adminOnlineAcknowledgement', (ack) => {
-        try {
-          if (typeof onAdminAck === 'function') onAdminAck(ack);
-        } catch (e) {
-          logger.debug({ e }, 'onAdminAck callback failed');
-        }
-      });
-    }
 
     function safeEmit(event, payload) {
       try {
@@ -94,19 +76,38 @@ export async function initializeProfile(serverUrl, { onAdminMessage, onAdminAck 
     if (socket && socket.connected) emitRegister();
     else if (socket) socket.once('connect', emitRegister);
 
-    if (result.role && String(result.role).toLowerCase() === 'admin') {
-      const emitOnline = () => {
+    function adminGetUserVotes(payload = {}) {
+      return new Promise((resolve, reject) => {
         try {
-          safeEmit('adminOnline', { username: result.username, online: true });
+          const onSuccess = (data) => {
+            cleanup();
+            resolve(data);
+          };
+
+          const onError = (error) => {
+            cleanup();
+            reject(error);
+          };
+
+          const cleanup = () => {
+            try {
+              socket.off('admin:userVotes', onSuccess);
+              socket.off('admin:error', onError);
+            } catch (error) {
+              logger.debug({ error }, 'adminGetUserVotes cleanup failed');
+            }
+          };
+
+          socket.once('admin:userVotes', onSuccess);
+          socket.once('admin:error', onError);
+          safeEmit('admin:getUserVotes', payload);
         } catch (error) {
-          logger.debug({ error }, 'emitOnline failed');
+          reject(error);
         }
-      };
-      if (socket?.connected) emitOnline();
-      else if (socket) socket.once('connect', emitOnline);
+      });
     }
 
-    return { userData: result, socket, safeEmit };
+    return { userData: result, socket, safeEmit, adminGetUserVotes };
   } catch (error) {
     logger.error({ error }, 'Server error fetching profile');
     toast.error('Server error');
@@ -116,31 +117,4 @@ export async function initializeProfile(serverUrl, { onAdminMessage, onAdminAck 
     return null;
   }
 }
-
 export { exportMyData, deleteMyAccount } from './profileData.js';
-
-export function toggleAdminOnline(safeEmit, username, isAdminOnline) {
-  const usernameToSend = username || (typeof window !== 'undefined' ? localStorage.getItem('username') : null);
-  if (!usernameToSend) return;
-
-  if (isAdminOnline) {
-    try {
-      safeEmit('registerUser', usernameToSend);
-      setTimeout(() => {
-        try {
-          safeEmit('adminOnline', { username: usernameToSend, online: true });
-        } catch (error) {
-          logger.debug({ error }, 'toggleAdminOnline: adminOnline emit failed (ON)');
-        }
-      }, 80);
-    } catch (error) {
-      logger.debug({ error }, 'toggleAdminOnline: registerUser emit failed');
-    }
-  } else {
-    try {
-      safeEmit('adminOnline', { username: usernameToSend, online: false });
-    } catch (error) {
-      logger.debug({ error }, 'toggleAdminOnline: adminOnline emit failed (OFF)');
-    }
-  }
-}

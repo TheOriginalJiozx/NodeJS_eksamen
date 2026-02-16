@@ -33,6 +33,7 @@ export function attachHangmanHandlers(socket, setters) {
       logger.debug({ error }, 'handleStart failed');
     }
   };
+
   const handleJoined = (data) => {
     try {
       if (typeof setSelectedRoomId === 'function') setSelectedRoomId(data?.roomId || null);
@@ -62,7 +63,6 @@ export function attachHangmanHandlers(socket, setters) {
     } catch (error) {
       logger.debug({ error }, 'handleUsers failed');
     }
-    socket.on('joined', handleJoined);
   };
 
   const handleCorrect = (data) => {
@@ -72,6 +72,7 @@ export function attachHangmanHandlers(socket, setters) {
       logger.debug({ error }, 'handleCorrect failed');
     }
   };
+
   const handleWrong = (data) => {
     try {
       setHangmanGame(data?.game ?? null);
@@ -79,6 +80,7 @@ export function attachHangmanHandlers(socket, setters) {
       logger.debug({ error }, 'handleWrong failed');
     }
   };
+
   const handleDuplicate = (data) => {
     toast.error(`The letter '${data?.letter}' has already been guessed`);
   };
@@ -114,21 +116,52 @@ export function attachHangmanHandlers(socket, setters) {
       const current = typeof getSelectedRoomId === 'function' ? getSelectedRoomId() : null;
       const roomIds = rooms.map((room) => room.id);
 
-      if ((current == null || current === '') || (current && !roomIds.includes(current))) {
-        if (rooms.length > 0 && typeof setSelectedRoomId === 'function') setSelectedRoomId(rooms[0].id);
+      if (current == null || current === '' || (current && !roomIds.includes(current))) {
+        if (rooms.length > 0 && typeof setSelectedRoomId === 'function')
+          setSelectedRoomId(rooms[0].id);
       }
-    } catch (error) { logger.debug({ error }, 'auto-select room failed'); }
+    } catch (error) {
+      logger.debug({ error }, 'auto-select room failed');
+    }
   };
 
   const handleChat = (data) => {
     try {
-      setChatMessages((previous) => [...(previous || []), { name: data?.name, message: data?.message }]);
+      setChatMessages((previous) => [
+        ...(previous || []),
+        { name: data?.name, message: data?.message },
+      ]);
     } catch (error) {
       logger.debug({ error }, 'handleChat failed');
     }
   };
 
-  const handleRoomLeft = () => {
+  const handleRoomLeft = (data) => {
+    try {
+      const reason = data && data.reason ? data.reason : null;
+      const answer = data && data.answer ? String(data.answer) : null;
+      if (reason === 'creator_left') {
+        try {
+          const msg = answer ? `Starter left room — word was not guessed: ${answer}` : 'Starter left room — word was not guessed.';
+          toast.success(msg);
+        } catch (error) {
+          logger.debug({ error }, 'Toast failed on creator_left');
+        }
+      } else {
+        try {
+          toast.success('Left room');
+        } catch (error) {
+          logger.debug({ error }, 'Toast failed on room left');
+        }
+      }
+      try {
+        if (typeof setLastAnswer === 'function') setLastAnswer(answer);
+        if (typeof setHasActiveHangman === 'function') setHasActiveHangman(false);
+      } catch (error) {
+        logger.debug({ error }, 'Could not set lastAnswer on roomLeft');
+      }
+    } catch (error) {}
+
     setHangmanGame(null);
     setHangmanUsers([]);
     setHangmanWinner(null);
@@ -146,6 +179,7 @@ export function attachHangmanHandlers(socket, setters) {
 
   socket.on('start', handleStart);
   socket.on('starter', handleStarter);
+  socket.on('joined', handleJoined);
   socket.on('users', handleUsers);
   socket.on('correctLetter', handleCorrect);
   socket.on('wrongLetter', handleWrong);

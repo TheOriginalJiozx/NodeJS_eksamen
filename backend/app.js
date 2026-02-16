@@ -14,20 +14,20 @@ import { initializeColorGame } from './src/games/colorgame.js';
 import usersRouter from './src/routes/usersRouter.js';
 import authRouter from './src/routes/authRouter.js';
 import attachSocketHandlers from './src/server/handlers/socketHandlers.js';
-import { rateLimit } from 'express-rate-limit'
+import { rateLimit } from 'express-rate-limit';
 
 const app = express();
 app.use(bodyParser.json());
 
 const limiter = rateLimit({
-	windowMs: 15 * 60 * 1000,
-	limit: 100,
-	standardHeaders: 'draft-8',
-	legacyHeaders: false,
-	ipv6Subnet: 56
-})
+  windowMs: 15 * 60 * 1000,
+  limit: 100,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  ipv6Subnet: 56,
+});
 
-app.use(limiter)
+app.use(limiter);
 
 /**
  * @param {import('express').Request} req
@@ -37,7 +37,8 @@ app.use(limiter)
 function authenticate(req, res, next) {
   try {
     const authenticationHeader = req.headers['authorization'] || '';
-    if (!authenticationHeader || !authenticationHeader.startsWith('Bearer ')) return res.status(401).json({ message: 'Missing token' });
+    if (!authenticationHeader || !authenticationHeader.startsWith('Bearer '))
+      return res.status(401).json({ message: 'Missing token' });
     const token = authenticationHeader.split(' ')[1];
     const decoded = verifyToken(token);
     if (!decoded) return res.status(403).json({ message: 'Invalid token' });
@@ -48,12 +49,14 @@ function authenticate(req, res, next) {
   }
 }
 
-app.use(cors({
-  origin: 'http://localhost:5173',
-  methods: ['GET', 'POST'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  credentials: true
-}));
+app.use(
+  cors({
+    origin: 'http://localhost:5173',
+    methods: ['GET', 'POST'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true,
+  }),
+);
 
 app.use(usersRouter);
 app.use(authRouter);
@@ -108,8 +111,8 @@ const socketServer = new Server(server, {
   cors: {
     origin: 'http://localhost:5173',
     methods: ['GET', 'POST'],
-    credentials: true
-  }
+    credentials: true,
+  },
 });
 
 /** @type {Record<string, string>}*/
@@ -119,13 +122,17 @@ const hangmanNamespace = socketServer.of('/hangman');
 initializeHangman(hangmanNamespace);
 const colorGame = initializeColorGame(socketServer, socketUsers);
 
-let onlineAdmins = new Set();
-
 app.set('socketServer', socketServer);
-app.set('onlineAdmins', onlineAdmins);
 app.set('socketUsers', socketUsers);
 
-attachSocketHandlers(socketServer, { socketUsers, onlineAdmins, colorGame, activePollId, getActivePollData, recordVote, getActivePollId: () => activePollId });
+attachSocketHandlers(socketServer, {
+  socketUsers,
+  colorGame,
+  activePollId,
+  getActivePollData,
+  recordVote,
+  getActivePollId: () => activePollId,
+});
 
 async function startServer() {
   await initializePollTables();
@@ -134,13 +141,13 @@ async function startServer() {
     activePollId = initialPoll.id;
   }
 
-  const PORT = 3000;
+  const PORT = 8080;
   server.listen(PORT, () => {
-    logger.info({ port: PORT }, 'Backend API + WebSocket server running');
+    logger.info({ PORT }, 'Backend API + WebSocket server running');
   });
 }
 
-startServer().catch(error => {
+startServer().catch((error) => {
   logger.error({ error: errorInfo(error) }, 'Failed to start server');
   process.exit(1);
 });

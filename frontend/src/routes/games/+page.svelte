@@ -1,7 +1,6 @@
 <script>
   import { onMount } from 'svelte';
   import { env as PUBLIC_ENV } from '$env/dynamic/public';
-  const PUBLIC_SERVER_URL = PUBLIC_ENV.PUBLIC_SERVER_URL;
   import { writable } from 'svelte/store';
   import { io } from 'socket.io-client';
   import { toast } from 'svelte-5-french-toast';
@@ -26,6 +25,8 @@
   /** @type {import('socket.io-client').Socket | null} */
   let socket = null;
 
+  const PUBLIC_SERVER_URL = PUBLIC_ENV.PUBLIC_SERVER_URL;
+  
   /**
    * @property {boolean} success
    */
