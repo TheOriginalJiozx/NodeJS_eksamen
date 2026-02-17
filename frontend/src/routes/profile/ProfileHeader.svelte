@@ -6,10 +6,6 @@
   export let adminGetUserVotes = null;
   import { toast } from 'svelte-5-french-toast';
   import { handleAdminGetUserVotes } from './adminUserVotesFunction.js';
-
-  function onAdminClick() {
-    handleAdminGetUserVotes(adminGetUserVotes, toast);
-  }
 </script>
 
 <div class="bg-white/20 backdrop-blur-lg rounded-3xl shadow-2xl p-12 w-full max-w-md border border-white/30">

@@ -4,7 +4,6 @@ import apiFetch from '../../lib/api.js';
 import logger from '../../lib/logger.js';
 import { getToken, clearAuthenticationState } from '../../stores/authStore.js';
 import { goto } from '$app/navigation';
-import { user as storeUser } from '../../stores/usersStore.js';
 
 /**
  * @param {string} serverUrl

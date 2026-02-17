@@ -18,8 +18,10 @@ export function createHangmanClient(socket) {
       try {
         socket.emit('join', { name, word }, (ack) => {
           try {
-            console.debug('hangman: start join ack', ack);
-          } catch (error) {}
+            logger.debug('hangman: start join ack', ack);
+          } catch (error) {
+            logger.debug({ error, name, word }, 'hangmanClient: start join ack failed');
+          }
         });
       } catch (error) {
         logger.debug({ error, name, word }, 'hangmanClient: start failed');
@@ -29,8 +31,10 @@ export function createHangmanClient(socket) {
       try {
         socket.emit('join', { name, roomId }, (ack) => {
           try {
-            console.debug('hangman: join ack', ack);
-          } catch (error) {}
+            logger.debug('hangman: join ack', ack);
+          } catch (error) {
+            logger.debug({ error, name, roomId }, 'hangmanClient: join ack failed');
+          }
         });
       } catch (error) {
         logger.debug({ error, name, roomId }, 'hangmanClient: join failed');

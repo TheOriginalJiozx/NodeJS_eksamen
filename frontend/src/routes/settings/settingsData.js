@@ -1,10 +1,7 @@
-import { toast } from 'svelte-5-french-toast';
 import apiFetch from '../../lib/api.js';
 import logger from '../../lib/logger.js';
 import { getPasswordError } from '../../lib/validation.js';
-import { setAuthenticationState, clearAuthenticationState } from '../../stores/authStore.js';
-import { goto } from '$app/navigation';
-import { user as storeUser } from '../../stores/usersStore.js';
+import { setAuthenticationState } from '../../stores/authStore.js';
 
 export async function submitChangePassword(targetUsername, currentPassword, newPassword, confirmPassword) {
   if (!currentPassword || !newPassword || !confirmPassword) {
@@ -30,7 +27,7 @@ export async function submitChangePassword(targetUsername, currentPassword, newP
 }
 
 export async function submitChangeUsername(oldUsername, newUsername, options = {}) {
-  const { role = null, safeEmit = null } = options;
+  const { role = null } = options;
   if (!newUsername || newUsername.length < 3) return { ok: false, message: 'New username must be at least 3 characters' };
   try {
     const response = await apiFetch(`/api/users/${encodeURIComponent(oldUsername)}`, {
@@ -51,9 +48,6 @@ export async function submitChangeUsername(oldUsername, newUsername, options = {
 
     if (data.token) localStorage.setItem('jwt', data.token);
     localStorage.setItem('username', newUsername);
-
-    try {
-    } catch (error) { logger.debug({ error }, 'Could not update persisted admin lists after username change (settingsData)'); }
 
     return { ok: true, token: data.token || null };
   } catch (error) {

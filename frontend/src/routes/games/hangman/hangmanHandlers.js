@@ -107,7 +107,9 @@ export function attachHangmanHandlers(socket, setters) {
   const handleStatus = (data) => {
     try {
       logger.debug({ data }, 'hangman: status received');
-    } catch (error) {}
+    } catch (error) {
+      logger.debug({ error, data }, 'hangman: status received, but logging failed');
+    }
     setHasActiveHangman(!!data?.active);
     setAvailableRooms(data?.rooms || []);
     setAllHangmanUsers(data?.allUsers || []);
@@ -160,7 +162,9 @@ export function attachHangmanHandlers(socket, setters) {
       } catch (error) {
         logger.debug({ error }, 'Could not set lastAnswer on roomLeft');
       }
-    } catch (error) {}
+    } catch (error) {
+      logger.debug({ error }, 'handleRoomLeft failed');
+    }
 
     setHangmanGame(null);
     setHangmanUsers([]);

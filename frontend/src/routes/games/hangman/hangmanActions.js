@@ -30,7 +30,9 @@ export function createHangmanActions(
     if (!word) {
       try {
         toast.error('Please supply a word to start the game');
-      } catch (error) {}
+      } catch (error) {
+        logger.error({ error }, 'Error showing toast notification for missing word');
+      }
       return;
     }
     client.start(name, word);

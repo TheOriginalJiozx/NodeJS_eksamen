@@ -263,14 +263,14 @@ export function initializeHangman(io) {
       }
     });
 
-    const cleanupChat = attachHangmanChatHandlers(io, socket, { buildStatus, broadcastStatus });
-
     socket.on('disconnect', async () => {
       try {
         const username = socket.data?.username;
         try {
           logger.info({ socketId: socket.id, username }, 'Hangman: disconnect');
-        } catch (e) {}
+        } catch (error) {
+          logger.error({ error }, 'Error logging hangman disconnect');
+        }
         if (username) connectedUsers.delete(username);
         broadcastStatus();
         for (const [roomId, room] of rooms.entries()) {

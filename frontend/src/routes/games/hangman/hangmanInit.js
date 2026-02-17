@@ -63,6 +63,7 @@ export default async function initHangmanLifecycle(setters) {
       }
       socket = browserWindow.__globalHangmanSocket;
     } catch (error) {
+      logger.error({ error }, 'Error initializing hangman socket');
       socket = io(`${PUBLIC_SERVER_URL}/hangman`, { transports: ['websocket'] });
     }
 
@@ -124,7 +125,7 @@ export default async function initHangmanLifecycle(setters) {
       } catch (error) {
         logger.debug({ error }, 'Could not emit leave on unload');
       }
-    }
+    };
 
     try {
       if (typeof window !== 'undefined') {

@@ -4,7 +4,6 @@ import logger from '../../lib/logger.js';
 import apiFetch from '../../lib/api.js';
 import { getToken, clearAuthenticationState } from '../../stores/authStore.js';
 import { goto } from '$app/navigation';
-import { user as storeUser } from '../../stores/usersStore.js';
 import { submitChangePassword as submitChangePasswordImplementation, submitChangeUsername as submitChangeUsernameImplementation } from './settingsData.js';
 
 /**
