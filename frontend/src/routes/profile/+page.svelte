@@ -9,10 +9,10 @@
   import logger from '../../lib/logger.js';
   import { user as storeUser } from '../../stores/usersStore.js';
   import { env as PUBLIC_ENV } from '$env/dynamic/public';
-  const PUBLIC_SERVER_URL = PUBLIC_ENV.PUBLIC_SERVER_URL;
   import { changeColor } from '../../lib/changeColor.js';
   import { initializeProfile } from './profileClient.js';
   import { exportMyData as clientExportMyData, deleteMyAccount as clientDeleteMyAccount } from './profileData.js';
+  const PUBLIC_SERVER_URL = PUBLIC_ENV.PUBLIC_SERVER_URL;
 
   /** @type {import('svelte/store').Writable<string>} */
   const backgroundGradient = writable('from-indigo-700 via-purple-700 to-fuchsia-600');
@@ -22,8 +22,6 @@
    */
   let userData = { username: '', role: '' };
    let adminGetUserVotes = null;
-
-  // admin-online feature removed: no admin-online state here
 
   /**
    * @param {string} event
@@ -49,7 +47,6 @@
     return await clientDeleteMyAccount(userData.username);
   }
 
-  // admin-online toggle removed
 </script>
 
 <Navbar />

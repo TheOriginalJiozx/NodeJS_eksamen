@@ -1,5 +1,5 @@
 import logger from '../../lib/logger.js';
-import { database } from '../../database.js';
+import { deleteUserAndVotesByUsername } from '../../database.js';
 import { getUserByUsername } from '../../lib/auth.js';
 
 export async function handleDeleteUser(req, res) {
@@ -7,7 +7,7 @@ export async function handleDeleteUser(req, res) {
     const { username } = req.params;
     logger.debug(
       { body: req.body, headersSummary: { authentication: !!req.headers['authorization'] } },
-      `DELETE /users/${username} called`,
+      'DELETE /users/' + username + ' called',
     );
     if (!username) return res.status(400).json({ message: 'Username required in path' });
     if (req.user.username !== username && String(req.user.role || '').toLowerCase() !== 'admin') {
@@ -26,15 +26,13 @@ export async function handleDeleteUser(req, res) {
 
     try {
       try {
-        await database.query('DELETE FROM user_votes WHERE username = ?', [username]);
-      } catch (voteError) {
-        logger.debug({ voteError, username }, "Could not delete user's votes — continuing");
-      }
-
-      try {
-        await database.query('DELETE FROM users WHERE username = ?', [username]);
-      } catch (userError) {
-        logger.error({ message: userError, username }, 'Could not delete user from database');
+        const deleted = await deleteUserAndVotesByUsername(username);
+        if (!deleted) {
+          logger.error({ username }, 'Could not delete user from database: no rows affected');
+          return res.status(500).json({ message: 'Could not delete user from database' });
+        }
+      } catch (databaseError) {
+        logger.error({ databaseError, username }, 'Could not delete user from database');
         return res.status(500).json({ message: 'Could not delete user from database' });
       }
 
@@ -43,24 +41,25 @@ export async function handleDeleteUser(req, res) {
         const socketUsers = req.app.get('socketUsers');
         if (socketUsers && typeof socketUsers === 'object') {
           for (const sessionId of Object.keys(socketUsers)) {
-            try {
-              const entry = socketUsers[sessionId];
-              const username = entry && typeof entry === 'object' ? entry.username : entry;
-              if (
-                String(username || '')
-                  .trim()
-                  .toLowerCase() ===
-                String(username || '')
-                  .trim()
-                  .toLowerCase()
-              )
-                delete socketUsers[sessionId];
-            } catch (error) {
-              logger.debug(
-                { error, sessionId, username },
-                'Error deleting socketUser entry during user deletion',
-              );
-            }
+              try {
+                const entry = socketUsers[sessionId];
+                const candidateUsername = entry && typeof entry === 'object' ? entry.username : entry;
+                if (
+                  String(candidateUsername || '')
+                    .trim()
+                    .toLowerCase() ===
+                  String(username || '')
+                    .trim()
+                    .toLowerCase()
+                ) {
+                  delete socketUsers[sessionId];
+                }
+              } catch (error) {
+                logger.debug(
+                  { error, sessionId, username },
+                  'Error deleting socketUser entry during user deletion',
+                );
+              }
           }
         }
 

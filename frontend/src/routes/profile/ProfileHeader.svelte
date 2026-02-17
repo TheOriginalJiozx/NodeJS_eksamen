@@ -3,9 +3,7 @@
   export let onChangeBackground = () => {};
   export let exportMyData = () => {};
   export let deleteMyAccount = () => {};
-  export let adminGetUserVotes = null;
   import { toast } from 'svelte-5-french-toast';
-  import { handleAdminGetUserVotes } from './adminUserVotesFunction.js';
 </script>
 
 <div class="bg-white/20 backdrop-blur-lg rounded-3xl shadow-2xl p-12 w-full max-w-md border border-white/30">
@@ -32,15 +30,6 @@
     >
       Export my data
     </button>
-
-    {#if userData && userData.role === 'Admin'}
-      <button
-        class="w-full max-w-xs bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-xl"
-        on:click={onAdminClick}
-      >
-        Get user's votes (admin)
-      </button>
-    {/if}
 
     <button
       class="w-full max-w-xs bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-xl"

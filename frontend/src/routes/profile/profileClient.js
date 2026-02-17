@@ -75,38 +75,7 @@ export async function initializeProfile(serverUrl) {
     if (socket && socket.connected) emitRegister();
     else if (socket) socket.once('connect', emitRegister);
 
-    function adminGetUserVotes(payload = {}) {
-      return new Promise((resolve, reject) => {
-        try {
-          const onSuccess = (data) => {
-            cleanup();
-            resolve(data);
-          };
-
-          const onError = (error) => {
-            cleanup();
-            reject(error);
-          };
-
-          const cleanup = () => {
-            try {
-              socket.off('admin:userVotes', onSuccess);
-              socket.off('admin:error', onError);
-            } catch (error) {
-              logger.debug({ error }, 'adminGetUserVotes cleanup failed');
-            }
-          };
-
-          socket.once('admin:userVotes', onSuccess);
-          socket.once('admin:error', onError);
-          safeEmit('admin:getUserVotes', payload);
-        } catch (error) {
-          reject(error);
-        }
-      });
-    }
-
-    return { userData: result, socket, safeEmit, adminGetUserVotes };
+    return { userData: result, socket, safeEmit };
   } catch (error) {
     logger.error({ error }, 'Server error fetching profile');
     toast.error('Server error');

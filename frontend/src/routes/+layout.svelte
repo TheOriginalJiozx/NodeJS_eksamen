@@ -62,8 +62,16 @@
     }
     try {
       if (globalSocket) {
-        try { globalSocket.off('adminNotice'); } catch (e) { logger.debug({ e }, 'Error removing adminNotice listener'); }
-        try { globalSocket.disconnect(); } catch (e) { logger.debug({ e }, 'Error disconnecting globalSocket'); }
+        try {
+          globalSocket.off('adminNotice');
+        } catch (error) {
+          logger.debug({ error }, 'Error removing adminNotice listener');
+        }
+        try {
+          globalSocket.disconnect();
+        } catch (error) {
+          logger.debug({ error }, 'Error disconnecting globalSocket');
+        }
       }
     } catch (error) {
       logger.debug({ error }, 'Error during layout onDestroy cleanup');

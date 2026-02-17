@@ -7,9 +7,10 @@
   import { goto } from '$app/navigation';
   import logger from '../../lib/logger.js';
   import { env as PUBLIC_ENV } from '$env/dynamic/public';
-  const PUBLIC_SERVER_URL = PUBLIC_ENV.PUBLIC_SERVER_URL;
   import { changeColor } from '../../lib/changeColor.js';
   import { initializeSettings } from './settingsClient.js';
+    const PUBLIC_SERVER_URL = PUBLIC_ENV.PUBLIC_SERVER_URL;
+
 
   /** @type {import('svelte/store').Writable<string>} */
   const backgroundGradient = writable('from-indigo-700 via-purple-700 to-fuchsia-600');
@@ -80,7 +81,7 @@
       userData.username = newUsername;
       localStorage.setItem('username', newUsername);
       if (result.token) {
-        try { setAuthenticationState({ token: result.token, username: newUsername, role: userData.role || null }); } catch (e) { logger.debug({ e }, 'could not update auth state after username change'); }
+        try { setAuthenticationState({ token: result.token, username: newUsername, role: userData.role || null }); } catch (error) { logger.debug({ error }, 'could not update auth state after username change'); }
       }
       showChangeUsername = false;
       newUsername = '';

@@ -53,7 +53,6 @@ router.patch(`${API}/users/:username`, authenticate, async (req, res) => {
     }
 
     const oldUsername = username;
-    const currentUser = await getUserByUsername(oldUsername);
     await changeUsername(oldUsername, newUsername);
 
     const response = { message: 'Username updated', newUsername };

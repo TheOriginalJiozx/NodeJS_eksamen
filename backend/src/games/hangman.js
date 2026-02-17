@@ -1,13 +1,12 @@
 import logger from '../lib/logger.js';
 import { createHangman } from './hangman_core.js';
 import createHangmanManager from './hangmanManager.js';
-import attachHangmanChatHandlers from './hangmanChat.js';
 
 export function initializeHangman(io) {
   const rooms = new Map();
   const connectedUsers = new Set();
 
-  const { getRoom, buildStatus, broadcastStatus } = createHangmanManager(rooms, connectedUsers, io);
+  const { getRoom, broadcastStatus } = createHangmanManager(rooms, connectedUsers, io);
 
   io.on('connection', (socket) => {
     try {
@@ -18,11 +17,12 @@ export function initializeHangman(io) {
     } catch (error) {
       logger.error({ error }, 'Error logging hangman socket connection');
     }
+    
     socket.on('set name', (name, callback) => {
       socket.data = socket.data || {};
-      const prev = socket.data.username;
+      const previous = socket.data.username;
       try {
-        if (prev && prev !== name) connectedUsers.delete(prev);
+        if (previous && previous !== name) connectedUsers.delete(previous);
       } catch (error) {
         logger.error({ error }, 'Error removing previous connected user in hangman set name');
       }
@@ -77,7 +77,9 @@ export function initializeHangman(io) {
         if (!room.scores.has(username)) room.scores.set(username, 0);
         try {
           socket.emit('score', room.scores.get(username));
-        } catch (error) {}
+        } catch (error) {
+          logger.debug({ error }, 'Error emitting score to socket in hangman join');
+        }
       } catch (error) {
         logger.error({ error }, 'Error initializing user score in join');
       }

@@ -35,7 +35,7 @@
         id="room-select"
         bind:value={selectedRoomId}
         class="text-black px-3 py-2 rounded"
-        on:change={(e) => onSelectRoom(e.target.value)}
+        on:change={(event) => onSelectRoom(event.target.value)}
       >
         {#each availableRooms as room}
           <option value={room.id}>Room {room.number} - Room creator: {room.creator}</option>

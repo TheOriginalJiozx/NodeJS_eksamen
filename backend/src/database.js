@@ -174,3 +174,29 @@ export async function getUserVotesByUsername(username) {
         return [];
     }
 }
+
+export async function deleteUserAndVotesByUsername(username) {
+    let connection;
+    try {
+        connection = await database.getConnection();
+        await connection.beginTransaction();
+
+        await connection.execute('DELETE FROM user_votes WHERE username = ?', [username]);
+
+        const [result] = await connection.execute('DELETE FROM users WHERE username = ?', [username]);
+
+        await connection.commit();
+        connection.release();
+
+        return result && result.affectedRows > 0;
+    } catch (error) {
+        try {
+            if (connection) await connection.rollback();
+        } catch (error) {
+            logger.debug({ error }, 'Rollback failed during deleteUserAndVotesByUsername');
+        }
+        if (connection) connection.release();
+        logger.error({ error, username }, 'Error deleting user and votes');
+        throw error;
+    }
+}

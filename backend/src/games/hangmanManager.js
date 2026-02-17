@@ -43,7 +43,10 @@ export function createHangmanManager(rooms, connectedUsers, io) {
         logger.error({ error }, 'Error broadcasting hangman allUsers');
       }
       try {
-        logger.debug({ rooms: (status.rooms || []).length, allUsers: (status.allUsers || []).length }, 'Hangman: broadcastStatus');
+        logger.debug(
+          { rooms: (status.rooms || []).length, allUsers: (status.allUsers || []).length },
+          'Hangman: broadcastStatus',
+        );
       } catch (error) {
         logger.error({ error }, 'Error logging hangman broadcast status');
       }

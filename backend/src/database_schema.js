@@ -42,7 +42,7 @@ export async function initializePollTables() {
                 ADD CONSTRAINT fk_uservotes_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
             `);
         } catch (error) {
-            logger.debug('fk_uservotes_user may already exist or could not be added');
+            logger.debug({ error }, 'fk_uservotes_user may already exist or could not be added');
         }
 
         try {
@@ -50,7 +50,7 @@ export async function initializePollTables() {
                 ALTER TABLE user_votes ADD UNIQUE INDEX unique_poll_user (poll_id, user_id)
             `);
         } catch (error) {
-            logger.debug('Unique index on user_votes (poll_id, user_id) may already exist');
+            logger.debug({ error }, 'Unique index on user_votes (poll_id, user_id) may already exist');
         }
 
         connection.release();

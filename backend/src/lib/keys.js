@@ -11,7 +11,7 @@ function normalizeKey(input) {
 function stripQuotes(value) {
     if (!value || typeof value !== 'string') return null;
     let stripped = value.trim();
-    while ((stripped.startsWith('"') && stripped.endsWith('"')) || (stripped.startsWith("'") && stripped.endsWith("'"))) {
+    while ((stripped.startsWith('"') && stripped.endsWith('"')) || (stripped.startsWith('\'') && stripped.endsWith('\''))) {
         stripped = stripped.slice(1, -1).trim();
     }
     stripped = stripped.replace(/^"+/, '').replace(/"+$/, '');

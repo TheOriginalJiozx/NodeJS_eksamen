@@ -26,13 +26,15 @@ export function attachHangmanChatHandlers(io, socket, { buildStatus } = {}) {
   };
 
   const handleRequestStatus = () => {
-    try {
       try {
-        logger.info(
-          { socketId: socket.id, username: socket.data?.username },
-          'Hangman: requestStatus',
-        );
-      } catch (error) {}
+        try {
+          logger.info(
+            { socketId: socket.id, username: socket.data?.username },
+            'Hangman: requestStatus',
+          );
+        } catch (error) {
+          logger.debug({ error }, 'hangmanChat: requestStatus logging failed');
+        }
       const status =
         typeof buildStatus === 'function'
           ? buildStatus()
@@ -45,7 +47,10 @@ export function attachHangmanChatHandlers(io, socket, { buildStatus } = {}) {
     } catch (error) {
       try {
         io.to(socket.id).emit('gameError', { message: error?.message || 'Error' });
-      } catch (error) {}
+      } catch (emitError) {
+        logger.debug({ emitError }, 'hangmanChat: emit gameError failed');
+      }
+      logger.debug({ error }, 'handleRequestStatus failed');
     }
   };
 

@@ -72,7 +72,7 @@ app.use(authRouter);
 app.get('/api/protected', authenticate, async (req, res) => {
   try {
     res.status(200).json({ message: `Welcome ${req.user.username}!`, username: req.user.username });
-  } catch (errror) {
+  } catch (error) {
     res.status(500).json({ message: 'Error accessing protected route' });
   }
 });

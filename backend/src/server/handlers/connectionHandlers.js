@@ -118,45 +118,6 @@ export async function handleConnection(socket, options) {
       }
     });
 
-    socket.on('admin:getUserVotes', async (data = {}) => {
-      try {
-        const requester = socketUsers && socketUsers[socket.id] ? socketUsers[socket.id] : null;
-        const requesterId = requester && requester.id ? Number(requester.id) : null;
-
-        if (!requesterId) {
-          socket.emit('admin:error', { message: 'Not authenticated' });
-          return;
-        }
-
-        const [roleRows] = await database.query('SELECT role FROM users WHERE id = ?', [requesterId]);
-        const roleRow = Array.isArray(roleRows) && roleRows[0] ? roleRows[0] : null;
-        const role = roleRow && roleRow.role ? String(roleRow.role) : null;
-
-        if (role !== 'Admin') {
-          socket.emit('admin:error', { message: 'Forbidden' });
-          return;
-        }
-
-        let targetId = null;
-        if (data.userId) targetId = Number(data.userId);
-        else if (data.username) {
-          const [userRows] = await database.query('SELECT id FROM users WHERE username = ?', [data.username]);
-          if (Array.isArray(userRows) && userRows[0] && userRows[0].id) targetId = Number(userRows[0].id);
-        }
-
-        if (!targetId) {
-          socket.emit('admin:error', { message: 'Target user not found' });
-          return;
-        }
-
-        const [votes] = await database.query('SELECT id, poll_id, username, option_name, voted_at, user_id FROM user_votes WHERE user_id = ?', [targetId]);
-        socket.emit('admin:userVotes', { userId: targetId, votes });
-      } catch (error) {
-        logger.debug({ error }, 'admin:getUserVotes error');
-        socket.emit('admin:error', { message: 'Server error' });
-      }
-    });
-
   } catch (error) {
     logger.debug({ error }, 'handleConnection failed');
   }
