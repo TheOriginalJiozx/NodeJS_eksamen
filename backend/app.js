@@ -8,7 +8,7 @@ import { createServer } from 'http';
 import { Server } from 'socket.io';
 import cors from 'cors';
 import { getActivePoll, getActivePollData, recordVote } from './src/database.js';
-import { initializePollTables } from './src/database_schema.js';
+import { initializePollTables } from './src/database_schemes.js';
 import { initializeHangman } from './src/games/hangman.js';
 import { initializeColorGame } from './src/games/colorgame.js';
 import usersRouter from './src/routes/usersRouter.js';

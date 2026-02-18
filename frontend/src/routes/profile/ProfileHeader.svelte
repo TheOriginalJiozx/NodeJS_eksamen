@@ -4,6 +4,11 @@
   export let exportMyData = () => {};
   export let deleteMyAccount = () => {};
   import { toast } from 'svelte-5-french-toast';
+  import authentication from '../../stores/authStore.js';
+  import { canManageUser } from '../../lib/authorization.js';
+
+  let allowed = false;
+  $: allowed = canManageUser($authentication, userData.username);
 </script>
 
 <div class="bg-white/20 backdrop-blur-lg rounded-3xl shadow-2xl p-12 w-full max-w-md border border-white/30">
@@ -31,11 +36,21 @@
       Export my data
     </button>
 
-    <button
-      class="w-full max-w-xs bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-xl"
-      on:click={deleteMyAccount}
-    >
-      Delete my account
-    </button>
+    {#if allowed}
+      <button
+        class="w-full max-w-xs bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-xl"
+        on:click={deleteMyAccount}
+      >
+        Delete my account
+      </button>
+    {:else}
+      <button
+        class="w-full max-w-xs bg-red-400 text-white font-semibold py-2 px-4 rounded-xl cursor-not-allowed"
+        disabled
+        title="You are not allowed to delete this account"
+      >
+        Delete my account
+      </button>
+    {/if}
   </div>
 </div>
