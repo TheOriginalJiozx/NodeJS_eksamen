@@ -200,3 +200,54 @@ export async function deleteUserAndVotesByUsername(username) {
         throw error;
     }
 }
+
+export async function getCurrentDatabaseName() {
+    try {
+        const [rows] = await database.query('SELECT DATABASE() AS current_database');
+        const databaseRow = Array.isArray(rows) && rows[0] ? rows[0] : null;
+        return databaseRow && databaseRow.current_database ? String(databaseRow.current_database) : null;
+    } catch (error) {
+        logger.debug({ error }, 'Error fetching current database name');
+        return null;
+    }
+}
+
+export async function setUserLastLoginAndOnline(userId) {
+    try {
+        await database.query('UPDATE users SET last_login = NOW(6), isOnline = 1 WHERE id = ?', [userId]);
+        return true;
+    } catch (error) {
+        logger.debug({ error, userId }, 'Could not set last_login and isOnline');
+        throw error;
+    }
+}
+
+export async function setUserLastLogin(userId) {
+    try {
+        await database.query('UPDATE users SET last_login = NOW(6) WHERE id = ?', [userId]);
+        return true;
+    } catch (error) {
+        logger.debug({ error, userId }, 'Could not set last_login fallback');
+        throw error;
+    }
+}
+
+export async function getUsernameChangedFlag(userId) {
+    try {
+        const [rows] = await database.query('SELECT username_changed FROM users WHERE id = ?', [userId]);
+        return rows && rows[0] && rows[0].username_changed ? !!rows[0].username_changed : false;
+    } catch (error) {
+        logger.debug({ error, userId }, 'Error fetching username_changed flag');
+        return false;
+    }
+}
+
+export async function setUserOfflineByUsername(username) {
+    try {
+        await database.query('UPDATE users SET isOnline = 0 WHERE username = ?', [username]);
+        return true;
+    } catch (error) {
+        logger.debug({ error, username }, 'Error setting user offline');
+        throw error;
+    }
+}

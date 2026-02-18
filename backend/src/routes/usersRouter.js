@@ -8,14 +8,14 @@ import {
 } from '../lib/auth.js';
 import logger from '../lib/logger.js';
 import { getUserVotesByUsername } from '../database.js';
-import authenticate from '../middleware/authenticate.js';
+import authorize from '../middleware/authenticate.js';
 import { handleDeleteUser } from './handlers/deleteUserHandler.js';
 import { getPasswordError } from '../lib/validation.js';
 
 const router = express.Router();
 const API = '/api';
 
-router.patch(`${API}/users/:username/password`, authenticate, async (req, res) => {
+router.patch(`${API}/users/:username/password`, authorize, async (req, res) => {
   try {
     const { username } = req.params;
     if (!username) return res.status(400).json({ message: 'Username required in path' });
@@ -40,7 +40,7 @@ router.patch(`${API}/users/:username/password`, authenticate, async (req, res) =
   }
 });
 
-router.patch(`${API}/users/:username`, authenticate, async (req, res) => {
+router.patch(`${API}/users/:username`, authorize, async (req, res) => {
   try {
     const { username } = req.params;
     const { newUsername } = req.body;
@@ -89,7 +89,7 @@ router.get(`${API}/users/check-email`, async (req, res) => {
 	}
 });
 
-router.get(`${API}/users/:username/export`, authenticate, async (req, res) => {
+router.get(`${API}/users/:username/export`, authorize, async (req, res) => {
   try {
     const { username } = req.params;
     if (!username) return res.status(400).json({ message: 'Username required in path' });
@@ -116,6 +116,6 @@ router.get(`${API}/users/:username/export`, authenticate, async (req, res) => {
   }
 });
 
-router.delete(`${API}/users/:username`, authenticate, handleDeleteUser);
+router.delete(`${API}/users/:username`, authorize, handleDeleteUser);
 
 export default router;

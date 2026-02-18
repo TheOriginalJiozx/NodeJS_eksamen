@@ -1,4 +1,4 @@
-import logger from '../src/lib/logger.js';
+import logger from './lib/logger.js';
 import { database } from './database.js';
 
 export async function initializePollTables() {

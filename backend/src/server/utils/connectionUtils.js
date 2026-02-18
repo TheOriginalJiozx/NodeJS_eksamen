@@ -1,5 +1,5 @@
 import logger from '../../lib/logger.js';
-import { database } from '../../database.js';
+import { getUserByUsername } from '../../lib/auth.js';
 
 /**
  * @param {Record<string, any>} socketUsers
@@ -8,10 +8,9 @@ import { database } from '../../database.js';
  */
 export async function resolveUserByUsername(socketUsers, socketId, username) {
   try {
-    const [rows] = await database.query('SELECT id, username, role FROM users WHERE username = ?', [username]);
-    const databaseRow = Array.isArray(rows) && rows[0] ? rows[0] : null;
-    const canonical = databaseRow && databaseRow.username ? databaseRow.username : username;
-    const databaseId = databaseRow && databaseRow.id ? String(databaseRow.id) : null;
+    const dbUser = await getUserByUsername(username);
+    const canonical = dbUser && dbUser.username ? dbUser.username : username;
+    const databaseId = dbUser && dbUser.id ? String(dbUser.id) : null;
     socketUsers[socketId] = { id: databaseId, username: canonical };
     return socketUsers[socketId];
   } catch (error) {
@@ -28,10 +27,10 @@ export async function resolveUserByUsername(socketUsers, socketId, username) {
  */
 export async function resolveClientUsernameForVote(socketUsers, socketId, clientUsername) {
   try {
-    const [rows] = await database.query('SELECT id, username FROM users WHERE username = ?', [clientUsername]);
-    const databaseRow = Array.isArray(rows) && rows[0] ? rows[0] : null;
-    const canonical = databaseRow && databaseRow.username ? databaseRow.username : clientUsername;
-    const databaseId = databaseRow && databaseRow.id ? String(databaseRow.id) : null;
+    const dbUser = await getUserByUsername(clientUsername);
+    if (!dbUser) return null;
+    const canonical = dbUser.username || clientUsername;
+    const databaseId = dbUser.id ? String(dbUser.id) : null;
     socketUsers[socketId] = { id: databaseId, username: canonical };
     return socketUsers[socketId];
   } catch (error) {

@@ -218,9 +218,7 @@ export function initializeHangman(io) {
             logger.error({ error }, 'Error emitting gameError event in hangman letter');
           }
           continue;
-        }
-
-        try {
+        } try {
           const result = room.game.checkLetter(letter);
           io.to(roomId).emit(result.type === 'success' ? 'correctLetter' : 'wrongLetter', {
             game: result.game,

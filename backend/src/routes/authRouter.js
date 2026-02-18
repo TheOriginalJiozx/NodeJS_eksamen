@@ -1,7 +1,7 @@
 import express from 'express';
 import { hashPassword, createUser, getUserByUsername, verifyPassword, generateToken, verifyToken } from '../lib/auth.js';
+import { getCurrentDatabaseName, setUserLastLoginAndOnline, setUserLastLogin, getUsernameChangedFlag, setUserOfflineByUsername } from '../database.js';
 import logger from '../lib/logger.js';
-import { database } from '../database.js';
 import authenticate from '../middleware/authenticate.js';
 
 const router = express.Router();
@@ -30,18 +30,16 @@ router.post(`${API}/auth/login`, async (req, res) => {
     if (!match) return res.status(401).json({ message: 'Wrong password' });
 
     try {
-      const [databaseRow] = await database.query('SELECT DATABASE() AS current_database');
-      const currentDatabase = Array.isArray(databaseRow) && databaseRow[0] ? databaseRow[0].current_database : null;
+      const currentDatabase = await getCurrentDatabaseName();
       logger.info({ currentDatabase, userId: user.id, username: user.username }, 'Database context before updating last_login');
-
       try {
-        await database.query('UPDATE users SET last_login = NOW(6), isOnline = 1 WHERE id = ?', [user.id]);
+        await setUserLastLoginAndOnline(user.id);
       } catch (innerError) {
         const message = innerError && innerError.message ? String(innerError.message) : '';
         const code = innerError && innerError.code ? String(innerError.code) : '';
         logger.warn({ errorMessage: message, errCode: code, userId: user.id }, 'Could not update isOnline — attempting fallback update');
         if (message.includes('Unknown column') || code === 'ER_BAD_FIELD_ERROR') {
-          await database.query('UPDATE users SET last_login = NOW(6) WHERE id = ?', [user.id]);
+          await setUserLastLogin(user.id);
         } else {
           throw innerError;
         }
@@ -58,14 +56,12 @@ router.post(`${API}/auth/login`, async (req, res) => {
   }
 });
 
-//ændre
 router.get(`${API}/auth/users/me`, authenticate, async (req, res) => {
   try {
     const user = await getUserByUsername(req.user.username);
     if (!user) return res.status(404).json({ message: 'User does not exist' });
 
-    const [rows] = await database.query('SELECT username_changed FROM users WHERE id = ?', [user.id]);
-    const username_changed = rows && rows[0] ? !!rows[0].username_changed : false;
+    const username_changed = await getUsernameChangedFlag(user.id);
 
     res.status(200).json({ id: user.id, username: user.username, email: user.email, username_changed, role: user.role });
   } catch (error) {
@@ -94,9 +90,11 @@ router.post(`${API}/auth/logout`, async (req, res) => {
     });
     if (!user) return res.status(200).json({ success: true });
 
-    await database.query('UPDATE users SET isOnline = 0 WHERE username = ?', [user.username]).catch((error) => {
+    try {
+      await setUserOfflineByUsername(user.username);
+    } catch (error) {
       logger.error({ error, username: user.username }, 'Error setting isOnline=0 during logout');
-    });
+    }
 
     return res.status(200).json({ success: true });
   } catch (error) {

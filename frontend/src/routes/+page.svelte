@@ -110,7 +110,7 @@
               {#if count !== 1}
                 <span class="text-white">{count} Votes</span>
               {:else}
-                <span class="text-white">{count} vote</span>
+                <span class="text-white">{count} Vote</span>
               {/if}
             </div>
           {/each}
